@@ -28,9 +28,9 @@ function loadData(filePath = path.join(__dirname, 'data', 'data.json')) {
   return data;
 }
 
-function saveData(filePath = path.join(__dirname, 'data', 'data.json')) {
+function saveData(dataToSave, filePath = path.join(__dirname, 'data', 'data.json')) {
   try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2), 'utf8');
     lastModified = fs.statSync(filePath).mtimeMs;
   } catch (error) {
     console.error(`Failed to save ${filePath}:`, error);
