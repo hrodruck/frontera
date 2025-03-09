@@ -1,5 +1,22 @@
 {
   "users": {
+    "123": {
+      "zones": {
+        "cinthria": {
+          "hasSeenMessage": true,
+          "subzones": {
+            "temple-in-cinthria": {
+              "hasSeenMessage": true
+            }
+          }
+        }
+      },
+      "currentZone": {
+        "zone": "cinthria",
+        "subzone": "temple-in-cinthria"
+      },
+      "isLoggedIn": true
+    },
     "1133727755599618178": {
       "zones": {
         "cinthria": {
