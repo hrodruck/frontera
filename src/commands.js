@@ -3,6 +3,7 @@ const { handleExplore } = require('./commands/explore');
 const { handleGoodbye } = require('./commands/goodbye');
 const { handleLook } = require('./commands/look');
 const { handleMove } = require('./commands/move');
+const { handleSpk } = require('./commands/spk');
 
 async function handleMessage(message) {
   if (message.author.bot || !message.content.startsWith('!')) return;
@@ -18,7 +19,6 @@ async function handleMessage(message) {
     } else if (command === 'goodbye') {
       await handleGoodbye(message);
     } else {
-      // Check if user is logged in and message is in their thread
       const userData = data.users[userId];
       const isLoggedIn = userData?.isLoggedIn;
 
@@ -27,8 +27,7 @@ async function handleMessage(message) {
         return;
       }
 
-      // Check if message is in a thread and matches the user's thread
-      if (message.channel.type !== 11) { // 11 is GUILD_PUBLIC_THREAD
+      if (message.channel.type !== 11) {
         await message.reply("This command must be used in your active exploration thread!");
         return;
       }
@@ -39,17 +38,19 @@ async function handleMessage(message) {
         return;
       }
 
-      // Handle commands that require being logged in and in the thread
       if (command === 'look') {
         await handleLook(message);
       } else if (command === 'move') { 
         await handleMove(message, args);
+      } else if (command === 'spk') {
+        await handleSpk(message, args);
       }
-    
     }
   } catch (error) {
     console.error('Error handling message:', error);
+    await message.reply('Something went wrong!');
   }
 }
 
 module.exports = { handleMessage };
+

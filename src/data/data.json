@@ -20,7 +20,7 @@
     "1133727755599618178": {
       "zones": {
         "cinthria": {
-          "hasSeenMessage": false,
+          "hasSeenMessage": true,
           "subzones": {
             "temple-in-cinthria": {
               "hasSeenMessage": true
@@ -35,7 +35,7 @@
         "zone": "cinthria",
         "subzone": "temple-in-cinthria"
       },
-      "isLoggedIn": false
+      "isLoggedIn": true
     }
   },
   "defaultZone": "cinthria",
