@@ -1,6 +1,23 @@
 {
+  "name": "frontera",
+  "version": "0.1",
+  "description": "A MUD-like Discord bot with LLM-driven logic",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest"
+  },
   "dependencies": {
-    "discord.js": "^14.18.0",
-    "dotenv": "^16.4.7"
-  }
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Rodrigo Mello",
+  "license": "Apache-2.0"
 }
+
