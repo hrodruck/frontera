@@ -26,7 +26,7 @@ async function handleMove(message, args) {
       .filter(subzone => userData.allowedSubzones[currentZone].includes(subzone))
       .join(', ');
     await message.reply(
-      `Please specify a subzone to move to! Allowed subzones in ${currentZone}: ${availableSubzones}\nUse \`!move <subzone-name>\`.`
+      `Please specify a subzone to move to!\nAllowed subzones in ${currentZone}: ${availableSubzones}\nUse \`!move <subzone-name>\`.`
     );
     return;
   }

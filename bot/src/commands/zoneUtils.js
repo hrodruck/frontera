@@ -12,7 +12,7 @@ function getZoneStatus(zone, currentSubzone) {
   if (typeof zoneData === 'object' && zoneData.description) {
     let status = zoneData.description; // Start with the zone description
     if (currentSubzone && zoneData.subzones && zoneData.subzones[currentSubzone]) {
-      status += `\n${currentSubzone}: ${zoneData.subzones[currentSubzone]}`; // Add only the current subzone
+      status += `\n${currentSubzone}: ${zoneData.subzones[currentSubzone].short_description}`; // Add only the current subzone
     }
     return status;
   }

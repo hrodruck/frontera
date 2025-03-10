@@ -1,5 +1,8 @@
-const { getData, saveData, initializeUser } = require('../data'); // Add initializeUser
+// explore.js
+const { getData, saveData, initializeUser } = require('../data');
 const { getZoneStatus, getDefaultSubzone } = require('./zoneUtils');
+const { startGame } = require('../serverConnection');
+const path = require('path');
 
 async function handleExplore(message) {
   const channel = message.channel;
@@ -12,10 +15,8 @@ async function handleExplore(message) {
   }
 
   try {
-    // Initialize user data if it doesn’t exist
     if (!data.users[user.id]) {
-      data.users[user.id] = initializeUser(user.id); // Use initializeUser from data.js
-      // Add exploration-specific data
+      data.users[user.id] = initializeUser(user.id);
       data.users[user.id].zones = {
         [data.defaultZone]: {
           hasSeenMessage: false,
@@ -24,30 +25,37 @@ async function handleExplore(message) {
           }
         }
       };
-      saveData();
+      saveData({'users':data.users}, path.join(__dirname, '../data/users.json'), 'users');
     }
 
     const userData = data.users[user.id];
-    const currentLocation = userData.currentZone;
+    const currentLocation = userData.currentZone || { zone: data.defaultZone, subzone: data.defaultSubzone };
     const zone = currentLocation.zone;
 
-    // Check if the zone channel exists
+    // Fetch room data from zones.json for the current subzone
+    const roomData = data.zones[zone]?.subzones[currentLocation.subzone]?.room;
+    if (!roomData) {
+      await message.reply(`No room data found for ${currentLocation.subzone} in ${zone}!`);
+      return;
+    }
+
+    // Start the game with the user's ID and room data
+    await startGame(user.id, { room: roomData });
+
     const zoneChannel = message.guild.channels.cache.find(ch => ch.name === zone && ch.type === 0);
     if (!zoneChannel) {
       await message.reply(`Error: Your current zone (${zone}) no longer exists! Resetting to default.`);
       const defaultSubzone = getDefaultSubzone(data.defaultZone);
       userData.currentZone = { zone: data.defaultZone, subzone: defaultSubzone };
-      // Ensure allowedZones and allowedSubzones are updated
       userData.allowedZones = [data.defaultZone];
       userData.allowedSubzones = { [data.defaultZone]: [defaultSubzone] };
-      // Initialize zone data if not present
       if (!userData.zones[data.defaultZone]) {
         userData.zones[data.defaultZone] = { hasSeenMessage: false, subzones: {} };
       }
       if (!userData.zones[data.defaultZone].subzones[defaultSubzone]) {
         userData.zones[data.defaultZone].subzones[defaultSubzone] = { hasSeenMessage: false };
       }
-      saveData();
+      saveData({'users':data.users}, path.join(__dirname, '../data/users.json'), 'users');
       return;
     }
 
@@ -77,7 +85,6 @@ async function handleExplore(message) {
     await thread.members.add(message.client.user.id);
     console.log("Created thread:", thread.name);
 
-    // Construct the location string for display
     const locationString = currentLocation.subzone
       ? `${zone} (${currentLocation.subzone})`
       : zone;
@@ -87,7 +94,6 @@ async function handleExplore(message) {
       await thread.send(
         `${user}, welcome to your adventure in ${locationString}!\n**Zone Status**:\n${zoneStatus}`
       );
-      // Set hasSeenMessage to true for zone and subzone
       if (!userData.zones[zone]) {
         userData.zones[zone] = { hasSeenMessage: false, subzones: {} };
       }
@@ -99,7 +105,7 @@ async function handleExplore(message) {
         userData.zones[zone].subzones[currentLocation.subzone].hasSeenMessage = true;
       }
       userData.isLoggedIn = true;
-      saveData();
+      saveData({'users':data.users}, path.join(__dirname, '../data/users.json'), 'users');
     } else {
       await thread.send(`${user}, you log into ${locationString}...`);
     }
@@ -110,4 +116,3 @@ async function handleExplore(message) {
 }
 
 module.exports = { handleExplore };
-

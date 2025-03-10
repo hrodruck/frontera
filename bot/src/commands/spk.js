@@ -1,7 +1,6 @@
+// spk.js
 require('dotenv').config();
-const axios = require('axios');
-
-const SERVER_URL = process.env.SERVER_URL;
+const { processInput } = require('../serverConnection'); // Import processInput
 
 async function handleSpk(message, args) {
   try {
@@ -12,13 +11,7 @@ async function handleSpk(message, args) {
       return;
     }
 
-    // Send the input to the Python server
-    const processResponse = await axios.post(`${SERVER_URL}/api/process-input`, {
-      command: playerInput,
-      session_id: SESSION_ID,
-    });
-
-    const responseText = `${processResponse.data.response}\n`.trim();
+    const responseText = await processInput(SESSION_ID, playerInput);
     await message.reply(responseText || "No response from the game.");
   } catch (error) {
     console.error('Error handling !spk command:', error);
@@ -27,4 +20,3 @@ async function handleSpk(message, args) {
 }
 
 module.exports = { handleSpk };
-

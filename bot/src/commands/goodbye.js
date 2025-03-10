@@ -10,12 +10,14 @@ async function handleGoodbye(message) {
   }
 
   const zone = data.users[user.id].currentZone.zone;
+  const subzone = data.users[user.id].currentZone.subzone;
   const zoneChannel = message.guild.channels.cache.find(ch => ch.name === zone && ch.type === 0);
 
   try {
     // Reset hasSeenMessage for the current zone
     if (data.users[user.id].zones?.[zone]) {
       data.users[user.id].zones[zone].hasSeenMessage = false;
+      data.users[user.id].zones[zone].subzones[subzone].hasSeenMessage = false;
     }
 
     if (zoneChannel) {

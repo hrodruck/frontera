@@ -1,3 +1,4 @@
+// In look.js
 const { getData, saveData } = require('../data');
 
 async function handleLook(message) {
@@ -39,7 +40,9 @@ async function handleLook(message) {
   // Get subzone description if applicable
   if (currentSubzone && data.zones[currentZone].subzones && data.zones[currentZone].subzones[currentSubzone]) {
     subzoneHasSeen = userData.zones[currentZone].subzones[currentSubzone]?.hasSeenMessage || false;
-    subzoneDescription = data.zones[currentZone].subzones[currentSubzone];
+    // Use long_description if available, otherwise fall back to short_description or existing behavior
+    const subzoneData = data.zones[currentZone].subzones[currentSubzone];
+    subzoneDescription = subzoneData.long_description || subzoneData.short_description || subzoneData;
   }
 
   // Combine descriptions or provide a default message
@@ -76,7 +79,7 @@ async function handleLook(message) {
 
   // Save data if anything changed
   if (dataChanged) {
-    data.users[userId] = userData; // Ensure userData is saved back to data.users
+    data.users[userId] = userData;
     saveData(data);
   }
 }
