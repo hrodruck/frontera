@@ -1,14 +1,14 @@
 require('dotenv').config();
 const axios = require('axios');
 
-const SESSION_ID = process.env.SESSION_ID;
 const SERVER_URL = process.env.SERVER_URL;
 
 async function handleSpk(message, args) {
   try {
-    const playerInput = args.join(' '); // e.g., "Look under the doormat"
+    const SESSION_ID = message.author.id;
+    const playerInput = args.join(' '); // e.g., "Look around"
     if (!playerInput) {
-      await message.reply('Please provide an action after !spk (e.g., !spk Look under the doormat)');
+      await message.reply('Please provide an action after !spk (e.g., !spk Look around)');
       return;
     }
 

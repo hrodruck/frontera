@@ -1,10 +1,15 @@
-const { getData, saveData } = require('../data');
+const { getData, saveData, initializeUser } = require('../data');
 const { getZoneStatus } = require('./zoneUtils');
 
 async function handleMove(message, args) {
   const user = message.author;
   const data = getData();
-  const userData = data.users[user.id];
+  let userData = data.users[user.id];
+
+  // Initialize user if they don’t exist
+  if (!userData) {
+    userData = initializeUser(user.id);
+  }
 
   const currentZone = userData.currentZone.zone;
   const zoneData = data.zones[currentZone];
@@ -17,14 +22,16 @@ async function handleMove(message, args) {
 
   // If no subzone is specified, list available subzones
   if (!args.length) {
-    const availableSubzones = Object.keys(zoneData.subzones).join(', ');
+    const availableSubzones = Object.keys(zoneData.subzones)
+      .filter(subzone => userData.allowedSubzones[currentZone].includes(subzone))
+      .join(', ');
     await message.reply(
-      `Please specify a subzone to move to! Available subzones in ${currentZone}: ${availableSubzones}\nUse \`!move <subzone-name>\`.`
+      `Please specify a subzone to move to! Allowed subzones in ${currentZone}: ${availableSubzones}\nUse \`!move <subzone-name>\`.`
     );
     return;
   }
 
-  const targetSubzone = args.join('-').toLowerCase(); // Join args with hyphens for subzone names like "temple-in-cinthria"
+  const targetSubzone = args.join('-').toLowerCase();
 
   try {
     // Check if the target subzone exists
@@ -33,6 +40,13 @@ async function handleMove(message, args) {
       await message.reply(
         `Subzone "${targetSubzone}" not found in ${currentZone}. Available subzones: ${availableSubzones}`
       );
+      return;
+    }
+
+    // Check if the subzone is allowed
+    const allowedSubzones = userData.allowedSubzones[currentZone] || [];
+    if (allowedSubzones.length > 0 && !allowedSubzones.includes(targetSubzone)) {
+      await message.reply(`You are not allowed to move to "${targetSubzone}" in ${currentZone}!`);
       return;
     }
 
@@ -60,3 +74,4 @@ async function handleMove(message, args) {
 }
 
 module.exports = { handleMove };
+

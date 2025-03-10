@@ -1,4 +1,4 @@
-const { getData, saveData } = require('../data');
+const { getData, saveData, initializeUser } = require('../data'); // Add initializeUser
 const { getZoneStatus, getDefaultSubzone } = require('./zoneUtils');
 
 async function handleExplore(message) {
@@ -12,21 +12,17 @@ async function handleExplore(message) {
   }
 
   try {
-    // Initialize user data if it doesn't exist
+    // Initialize user data if it doesn’t exist
     if (!data.users[user.id]) {
-      if (!data.defaultZone) throw new Error("Default zone not found");
-      const defaultSubzone = getDefaultSubzone(data.defaultZone);
-      data.users[user.id] = {
-        zones: {
-          [data.defaultZone]: {
-            hasSeenMessage: false,
-            subzones: {
-              [defaultSubzone]: { hasSeenMessage: false }
-            }
+      data.users[user.id] = initializeUser(user.id); // Use initializeUser from data.js
+      // Add exploration-specific data
+      data.users[user.id].zones = {
+        [data.defaultZone]: {
+          hasSeenMessage: false,
+          subzones: {
+            [data.defaultSubzone]: { hasSeenMessage: false }
           }
-        },
-        currentZone: { zone: data.defaultZone, subzone: defaultSubzone },
-        isLoggedIn: false
+        }
       };
       saveData();
     }
@@ -41,6 +37,9 @@ async function handleExplore(message) {
       await message.reply(`Error: Your current zone (${zone}) no longer exists! Resetting to default.`);
       const defaultSubzone = getDefaultSubzone(data.defaultZone);
       userData.currentZone = { zone: data.defaultZone, subzone: defaultSubzone };
+      // Ensure allowedZones and allowedSubzones are updated
+      userData.allowedZones = [data.defaultZone];
+      userData.allowedSubzones = { [data.defaultZone]: [defaultSubzone] };
       // Initialize zone data if not present
       if (!userData.zones[data.defaultZone]) {
         userData.zones[data.defaultZone] = { hasSeenMessage: false, subzones: {} };
@@ -111,3 +110,4 @@ async function handleExplore(message) {
 }
 
 module.exports = { handleExplore };
+
