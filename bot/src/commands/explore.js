@@ -1,8 +1,11 @@
 // explore.js
+require('dotenv').config();
 const { getData, saveData, initializeUser } = require('../data');
 const { getZoneStatus, getDefaultSubzone } = require('./zoneUtils');
 const { startGame } = require('../serverConnection');
 const path = require('path');
+
+const SESSION_ID = process.env.SESSION_ID
 
 async function handleExplore(message) {
   const channel = message.channel;
@@ -10,7 +13,7 @@ async function handleExplore(message) {
   const data = getData();
 
   if (channel.type !== 0) {
-    await message.reply("This command only works in text channels!");
+    await message.reply("This command only works in text channels! Not in threads!");
     return;
   }
 
@@ -40,7 +43,7 @@ async function handleExplore(message) {
     }
 
     // Start the game with the user's ID and room data
-    await startGame(user.id, { room: roomData });
+    await startGame(SESSION_ID, user.id, { room: roomData });
 
     const zoneChannel = message.guild.channels.cache.find(ch => ch.name === zone && ch.type === 0);
     if (!zoneChannel) {

@@ -4,11 +4,12 @@ const axios = require('axios');
 
 const SERVER_URL = process.env.SERVER_URL;
 
-async function startGame(sessionId, roomData) {
+async function startGame(sessionId, playerId, roomData) {
   try {
     const response = await axios.post(`${SERVER_URL}/api/start-game`, {
       ...roomData,
-      session_id: sessionId, // Override session_id with the provided value
+      session_id: sessionId,
+      player_id: playerId, // Add player_id to the request
     });
     console.log('Game started:', response.data.message);
     return response.data;
@@ -18,11 +19,12 @@ async function startGame(sessionId, roomData) {
   }
 }
 
-async function processInput(sessionId, command) {
+async function processInput(sessionId, playerId, command) {
   try {
     const response = await axios.post(`${SERVER_URL}/api/process-input`, {
       command,
       session_id: sessionId,
+      player_id: playerId, // Add player_id to match backend expectation
     });
     return response.data.response;
   } catch (error) {
@@ -31,4 +33,17 @@ async function processInput(sessionId, command) {
   }
 }
 
-module.exports = { startGame, processInput };
+async function getPlayerProgress(sessionId, playerId) {
+  try {
+    const response = await axios.post(`${SERVER_URL}/api/player-progress`, {
+      session_id: sessionId,
+      player_id: playerId,
+    });
+    return response.data.response;
+  } catch (error) {
+    console.error('Error getting player progress:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+}
+
+module.exports = { startGame, processInput, getPlayerProgress };

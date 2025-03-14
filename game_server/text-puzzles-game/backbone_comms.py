@@ -13,7 +13,7 @@ class BackboneComms():
         self._comms_queue = ''
         self.progress_lock = asyncio.Lock()
         self.openai_backbone = os.getenv('USE_OPENAI_BACKBONE') == 'True'
-        
+        self.history_lock = asyncio.Lock()
         #TOGETHER HAS A TERRIBLE JSON MODE as of now
         
         self.together_ai_backbone = os.getenv('USE_TOGETHER_BACKBONE') == 'True'
@@ -47,10 +47,17 @@ class BackboneComms():
         return match
             
     def load_json_from_llm(self, text):
-        json_text = self.extract_json_between_markers(text)
-        json_text = json_text.replace('False', 'false')
-        json_text = json_text.replace('True', 'true')
-        return json.loads(json_text)
+        #json_text = self.extract_json_between_markers(text)
+        json_text = text
+        #json_text = json_text.replace('False', 'false')
+        #json_text = json_text.replace('True', 'true')
+        try:
+            answer = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse JSON: {json_text}")
+            print(f"Error: {e}")
+            raise e
+        return answer
 
     async def chat_together_backbone(self, history, json=False):
         client = AsyncTogether(
@@ -127,18 +134,19 @@ class BackboneComms():
         self._comms_queue += f"\n{response}"
         return response
 
-    async def chat_outer(self, user_message, user_history=[], json=False, keep_history=True):
+    async def chat_outer(self, user_message, user_history=[], json=False, keep_history=True, lock_history=True):
         #the first message should be the system prompt
         assert(user_history[0]['role']=='system')
         assert(len(user_history)>0) # system prompt must be set
-        if keep_history:
-            if len(user_history)>2:
-                user_history.append(user_history[0]) #repeat system prompt
-            user_history.append(
-                {'role': 'user', 'content':user_message}
-            )
-            response = await self._chat_inner(user_history, json)
-            user_history.append({'role': 'assistant', 'content': response})
+        if lock_history:
+            async with self.history_lock:
+                if len(user_history)>2:
+                    user_history.append(user_history[0]) #repeat system prompt
+                user_history.append(
+                    {'role': 'user', 'content':user_message}
+                )
+                response = await self._chat_inner(user_history, json)
+                user_history.append({'role': 'assistant', 'content': response})
         else:
             history_len = len(user_history)
             temp_history = deepcopy(user_history)
