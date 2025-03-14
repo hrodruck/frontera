@@ -40,7 +40,8 @@ class EngineGameObject(GameObject):
             json_example += f'"{s}":"The player has turned into a frog"'
         json_example += '}'
         
-        update_orders_prompt = f"Consider the current state of the game, {json.dumps(await self.get_game_state())}. What commands or facts should be presented to each game object to update them?\
+        update_orders_prompt = f"Consider the current state of the game, {json.dumps(await self.get_game_state())} and the replies of each gameobject to the latest update this round:{json.dumps(self.game_state_update_replies)}.\
+        What commands or facts should be presented to each game object to update them?\
         Consider also the temporary descriptions the game engine computed for each player {json.dumps(responses_to_players)}\
         Other gameobjects are not aware of changes to each other's states, it's your job to make it clear to each gameobject what is the game's state.\
         Use as much info as necessary, no need to be brief now. Tell each gameobject what relevant changes happened in the game state.\
@@ -53,8 +54,7 @@ class EngineGameObject(GameObject):
         for k, v in dict_updates.items():
             dict_updates[k] = f'Update: This is a message from the game engine: {v}\n\n'
         
-        #replies from each gameobject are discarded, is that OK?
-        await self.send_broadcast(dict_updates, keep_history=False)
+        game_state_update_replies = await self.send_broadcast(dict_updates, keep_history=False)
     
     async def process_one_player_input(self, player_input, aux_bluff_history, aux_success_history, initial_history):
         multiple_actions_prompt = f'Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action.' +  'Return a json like {multiple:True} or {multiple:False} to indicate whether the player has performed multiple actions.'
@@ -119,6 +119,7 @@ class EngineGameObject(GameObject):
             f"The player with the lowest number has the most priority in their action. For example, if player with priority 0 attemps to break a vase and player with priority 2 attempts to take it, the vase should be broken"
             f"return a new JSON where the keys are the player ids and the commands take into consideration the actions of other players according to priority"
             f"Each command your return should overwrite the player's initial command. If a player says 'I break the vase' and another player says 'I take the vase' you can change the lowest priority one to 'I fail to ...'. Consider the interactions between the player's commands for all players."
+            f"If a player's input is missing or is N/A, change that to something like 'i wait' or 'i pass the turn'"
         )
         json_player_prompts = await self.chat_with_backbone(harmonization_prompt, self._my_history, expect_json=True)
         dict_player_prompts = self.comms_backbone.load_json_from_llm(json_player_prompts)
@@ -131,13 +132,15 @@ class EngineGameObject(GameObject):
         for player_id, response in zip(dict_player_prompts.keys(), responses_to_players_list):
             responses_to_players[player_id] = response
         
+        self.game_state_update_replies = ''
         for _ in range(3):
             await self.update_current_game_state(responses_to_players)
         
         final_responses_prompt = (
             f"Update the message to each player, considering the whole scenario. This is the earlier message to each player per player_id: {json.dumps(responses_to_players)}"
             f"Remember the players (if there's more than one) are in a shared scenario. Also recall the game state, {json.dumps(await self.get_game_state())}"
-            f"Reply a JSON where each key is the player id and the value is the updated description, tailored to each player"
+            f"Reply a JSON where each key is the player id and the value is the updated description, tailored to each player."
+            f"Only reply the json, nothing else."
         )
         json_final_responses = await self.chat_with_backbone(final_responses_prompt, self._my_history)
         final_responses = self.comms_backbone.load_json_from_llm(json_final_responses)

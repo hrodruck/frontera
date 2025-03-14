@@ -53,6 +53,7 @@ async def new_session(session_id: str, game: Any):
     game_progress[session_id]=''
     locks[session_id] = asyncio.Lock()
     buffered_player_commands[session_id]={}
+    game_responses_per_player[session_id]={}
     is_processing_locks[session_id] = asyncio.Lock()
     asyncio.create_task(game_update(session_id))
     asyncio.create_task(poll_game_progress(session_id))
@@ -88,15 +89,15 @@ async def game_update(session_id):
                     buffered_player_commands[session_id] = {}
                     #player_commands['GameMaster'] = "I do nothing and wait"
                 async for player_id, game_response in game.process_input(player_commands):
-                    game_responses_per_player[player_id] = game_response
+                    game_responses_per_player[session_id][player_id] = game_response
             await asyncio.sleep(0.1)
         except RuntimeError as e:
             break
 
 async def get_player_progress(session_id, player_id):
-    if player_id in game_responses_per_player.keys():
-        player_response = game_responses_per_player[player_id]
-        game_responses_per_player[player_id] = ''
+    if player_id in game_responses_per_player[session_id].keys():
+        player_response = game_responses_per_player[session_id][player_id]
+        game_responses_per_player[session_id][player_id] = ''
         return player_response
     else:
         return ''

@@ -4,7 +4,8 @@ const { processInput, getPlayerProgress } = require('../serverConnection');
 
 const SESSION_ID = process.env.SESSION_ID;
 
-let isPolling = false; // Flag to track if polling is active
+// Object to track polling state per user ID
+const pollingStates = new Map(); // Using Map for better performance with dynamic keys
 
 async function handleSpk(message, args) {
   try {
@@ -21,34 +22,38 @@ async function handleSpk(message, args) {
     await message.reply(replyMessage);
 
     // Start asynchronous polling for player progress
-    if (inputResponse !== "You already have a command waiting!"){
-        
-        const pollProgress = async () => {
-          /*if (isPolling) {
-            console.log('Polling already in progress, skipping new poll request.');
-            return; // Exit if polling is already active
-          }*/
+    if (inputResponse !== "You already have a command waiting!") {
+      const pollProgress = async () => {
+        // Check if this user is already polling
+        if (pollingStates.get(USER_ID)) {
+          console.log(`Polling already in progress for user ${USER_ID}, skipping new poll request.`);
+          return; // Exit if polling is already active for this user
+        }
 
-          isPolling = true; // Set flag to indicate polling has started
-          const interval = setInterval(async () => {
-            try {
-              const playerProgress = await getPlayerProgress(SESSION_ID, USER_ID);
-              if (playerProgress && playerProgress.trim() !== '') {
-                await message.reply(`Progress: ${playerProgress}`);
-                clearInterval(interval);
-                isPolling = false; // Reset flag when polling stops
-              }
-            } catch (error) {
-              console.error('Error polling player progress:', error);
-              await message.reply('Error checking progress!');
-              clearInterval(interval);
-              isPolling = false; // Reset flag on error
+        pollingStates.set(USER_ID, true); // Set flag to indicate polling has started for this user
+        const interval = setInterval(async () => {
+          try {
+            const playerProgress = await getPlayerProgress(SESSION_ID, USER_ID);
+            
+            if (playerProgress && playerProgress.trim() !== '') {
+              await message.reply(`Progress: ${playerProgress}`);
+              // Uncomment these lines if you want to stop polling after progress is received
+              // clearInterval(interval);
+              // pollingStates.set(USER_ID, false);
             }
-          }, 1000); // Poll every 1 second
-        };
+          } catch (error) {
+            console.error(`Error polling player progress for user ${USER_ID}:`, error);
+            await message.reply('Error checking progress!');
+            clearInterval(interval);
+            pollingStates.set(USER_ID, false); // Reset flag on error
+          }
+        }, 1000); // Poll every 1 second
+      };
 
-// Start polling
-pollProgress();
+      // Start polling if not already polling for this user
+      if (!pollingStates.get(USER_ID)) {
+        pollProgress();
+      }
     }
   } catch (error) {
     console.error('Error handling !spk command:', error);

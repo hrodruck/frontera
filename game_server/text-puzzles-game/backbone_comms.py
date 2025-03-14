@@ -47,7 +47,6 @@ class BackboneComms():
         return match
             
     def load_json_from_llm(self, text):
-        #json_text = self.extract_json_between_markers(text)
         json_text = text
         #json_text = json_text.replace('False', 'false')
         #json_text = json_text.replace('True', 'true')
