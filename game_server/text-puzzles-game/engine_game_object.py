@@ -58,8 +58,9 @@ class EngineGameObject(GameObject):
     
     async def process_one_player_input(self, player_id, player_input, aux_bluff_history, aux_success_history, initial_history):
         multiple_actions_prompt = (
-            f"Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action.' +  'Return a json like {multiple:True} or {multiple:False} to indicate whether the player has performed multiple actions."
-            f"Consider only one player and their input (the id is {player_id}). Return only json. The json should have the word 'multiple' as the only key and either 'true' or 'false' as the value, nothing more."
+            f"Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action."
+            "Return a json like multiple:True or multiple:False to indicate whether the player has performed multiple actions."
+            f"Consider only one player and their input (the id is {player_id}). Return only json. From now on, do not return player_ids as keys unless stated otherwise. Focus on player {player_id}."
         )
         multiple_actions = await self.get_binary_answer(multiple_actions_prompt, initial_history, 'multiple')
         if multiple_actions:
