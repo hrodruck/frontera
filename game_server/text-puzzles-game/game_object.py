@@ -1,4 +1,5 @@
 import json
+import os
 from copy import deepcopy
 import asyncio
 import inspect
@@ -7,22 +8,35 @@ from backbone_comms import BackboneComms
 
 class GameObject:
     # Global tools dataset shared across all GameObjects
-    tools_dataset = {
-        "break": {
-            "name": "break",
-            "description": "Reduces durability to 0 and marks object as broken",
-            "function": lambda self: self.update_state({"durability": 0, "is_broken": True}),
-            "reviewed": True  # Predefined tools are already reviewed
-        },
-        "unlock": {
-            "name": "unlock",
-            "description": "Unlocks the object if it has a locked state",
-            "function": lambda self: self.update_state({"is_locked": False}) if "is_locked" in self.state else None,
-            "reviewed": True
-        }
-    }
+    tools_dataset = {}
+
+    @classmethod
+    def load_tools_dataset(cls):
+        """Load tools_dataset from JSON file and recreate lambda functions using eval."""
+        tools_dataset_file = "tools_dataset.json"
+        if os.path.exists(tools_dataset_file):
+            try:
+                with open(tools_dataset_file, 'r') as f:
+                    loaded_tools = json.load(f)
+                    # Reconstruct the tools_dataset with lambda functions using eval
+                    for tool_name, tool_data in loaded_tools.items():
+                        cls.tools_dataset[tool_name] = {
+                            "name": tool_data["name"],
+                            "description": tool_data["description"],
+                            "function": tool_data["function"],
+                            "reviewed": tool_data["reviewed"]
+                        }
+            except Exception as e:
+                print(f"Error loading tools_dataset from {tools_dataset_file}: {e}")
+                # Fallback to empty dataset if loading fails
+                cls.tools_dataset = {}
+        else:
+            print(f"Tools dataset file {tools_dataset_file} not found. Initializing empty tools_dataset.")
+            cls.tools_dataset = {}
 
     def __init__(self, initial_state=None, initial_tools=None):
+        if not GameObject.tools_dataset:
+            GameObject.load_tools_dataset()
         self.comms_backbone = BackboneComms()
         self.progress_queue = ''
         self._my_history = []
@@ -58,6 +72,10 @@ class GameObject:
         self.state.update(updates)
         return self.state
 
+    async def get_reviewed_tools(self):
+        approved_tools = {k:v for k, v in GameObject.tools_dataset.items() if v["reviewed"]==True}
+        return json.dumps(approved_tools)
+
     async def process_game_input(self, input_contents, keep_history=True):
         """
         Process input from the game engine, distinguishing between query and update phases.
@@ -79,12 +97,15 @@ class GameObject:
                 # Update phase: Modify state using tools
                 update = input_contents.replace("Update:", "").strip()
                 prompt = (
-                    f"Given my current state: {current_state_str} and available tools: {str(self.tools)}, "
+                    f"Given my current state: {current_state_str} and available tools: {json.dumps(self.tools)}, "
                     f"Now is the time to decide about updates to your state. "
                     f"How should I update myself based on this instruction: '{update}'? "
                     f"My role is {self.object_name}. "
                     f"If none of the available tools are adequate, propose a new tool. "
                     f"Return JSON: {{'action': 'use_tool'|'fetch_tool'|'propose_tool'|'no_action', 'tool_name': 'name', 'params': {{optional}}, 'new_tool': {{optional}}}}. "
+                    f"If fetching a tool, you must choose one of the tools from the following: {await self.get_reviewed_tools()}"
+                    f"Your order of preference should be to use_tool if possible, then fetch_tool if there's any match, then propose_tool or no_action if there is no particular modification to be made in the state."
+                    f"To decide if fetch_tool is adequate, consider also the 'function' of that tool and interpret its behavior"
                     f"If proposing a tool, the 'new_tool' object must include: "
                     f"- 'name': the tool's name (string), "
                     f"- 'description': what the tool does (string), "
@@ -144,7 +165,7 @@ class GameObject:
         params = response_dict.get("params", {})  # Optional parameters from LLM response
         
         if action == "use_tool" and tool_name in self.tools:
-            tool_func = self.tools[tool_name]["function"]
+            tool_func = eval(self.tools[tool_name]["function"], {"self": self, "random":random})
             result = await self.execute_tool(tool_func, tool_name, params)
             if result:
                 return result
@@ -153,7 +174,7 @@ class GameObject:
         elif action == "fetch_tool" and tool_name in self.tools_dataset:
             if self.tools_dataset[tool_name]["reviewed"]:
                 self.tools[tool_name] = self.tools_dataset[tool_name]
-                tool_func = self.tools[tool_name]["function"]
+                tool_func = eval(self.tools[tool_name]["function"], {"self": self, "random":random})
                 result = await self.execute_tool(tool_func, tool_name, params)
                 if result:
                     return result
@@ -177,7 +198,8 @@ class GameObject:
                     return result
                 
                 # Add to tools_dataset and tools as before
-                new_tool["function"] = tool_func
+                new_tool["function"] = func_str
+                new_tool.pop("params", None)
                 new_tool["reviewed"] = False
                 self.tools_dataset[new_tool["name"]] = new_tool
                 local_tool = new_tool.copy()

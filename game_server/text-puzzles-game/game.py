@@ -4,6 +4,7 @@ import copy
 import os
 import re
 import random
+import aiofiles
 from engine_game_object import EngineGameObject
 from game_object import GameObject
 
@@ -114,16 +115,9 @@ class Game():
                 .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[key].items()}))
             )
             self.game_objects[key].set_system_message(applied_template)
-            # For tools with functions, we’ll need to reinstate them after JSON parsing
             for tool_name, tool_data in self.scene_objects_tools[key].items():
-                if 'function' in tool_data:
-                    # Here, we assume the function is a string representation; convert it back
-                    func_str = tool_data['function']
-                    if func_str.startswith('lambda'):
-                        # Simplified parsing; in practice, use a function registry or eval with caution
-                        self.game_objects[key].tools[tool_name]['function'] = eval(func_str, {'self': self.game_objects[key], 'json': json})
-                    else:
-                        self.game_objects[key].tools[tool_name]['function'] = lambda self: None  # Placeholder
+                self.game_objects[key].tools[tool_name]['function'] = tool_data['function']
+                    
 
             # No need for designer assistant; state is already set
             tasks.append(self.game_objects[key].process_game_input(
@@ -294,6 +288,13 @@ class Game():
         all_player_responses = await self.engine_game_object.process_player_input(player_input_dict) #currently, the game engine covers a zone. Will change when we have more zones in the game
         
         await self.print_game_state_and_tools()
+        
+        tools_dataset_file = "tools_dataset.json"
+        try:
+            async with aiofiles.open(tools_dataset_file, 'w') as f:
+                await f.write(json.dumps(GameObject.tools_dataset, indent=4))
+        except Exception as e:
+            print(f"Error saving tools_dataset to JSON: {e}")
         
         for player_id, tailored_response in all_player_responses.items():
             yield player_id, tailored_response

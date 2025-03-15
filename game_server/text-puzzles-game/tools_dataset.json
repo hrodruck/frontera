@@ -1,0 +1,32 @@
+{
+    "break": {
+        "name": "break",
+        "description": "Reduces durability to 0 and marks object as broken",
+        "function": "lambda self: self.update_state({\"durability\": 0, \"is_broken\": True})",
+        "reviewed": true
+    },
+    "unlock": {
+        "name": "unlock",
+        "description": "Unlocks the object if it has a locked state",
+        "function": "lambda self: self.update_state({\"is_locked\": False}) if \"is_locked\" in self.state else None",
+        "reviewed": true
+    },
+    "change_description": {
+        "name": "change_description",
+        "description": "Updates the description of the object to a new provided string",
+        "function": "lambda self, new_description: self.update_state({\"description\": new_description}) if isinstance(new_description, str) else None",
+        "reviewed": true
+    },
+    "pick_up_item": {
+        "name": "pick_up_item",
+        "description": "Picks up an item if conditions are met",
+        "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]}) if \"has_hidden_item\" in self.state and self.state[\"has_hidden_item\"] and not self.state.get(\"hands_in_use\", False) else {\"success\": False, \"message\": \"Hands are full or no item to pick up\"}",
+        "reviewed": true
+    },
+    "hold_item": {
+        "name": "hold_item",
+        "description": "Updates the state to reflect that the player is holding a specific item",
+        "function": "lambda self, item: self.update_state({\"held_item\": item}) if \"held_item\" in self.state else self.update_state({\"held_item\": item, \"hands_in_use\": True})",
+        "reviewed": true
+    }
+}

@@ -56,8 +56,11 @@ class EngineGameObject(GameObject):
         
         game_state_update_replies = await self.send_broadcast(dict_updates, keep_history=False)
     
-    async def process_one_player_input(self, player_input, aux_bluff_history, aux_success_history, initial_history):
-        multiple_actions_prompt = f'Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action.' +  'Return a json like {multiple:True} or {multiple:False} to indicate whether the player has performed multiple actions.'
+    async def process_one_player_input(self, player_id, player_input, aux_bluff_history, aux_success_history, initial_history):
+        multiple_actions_prompt = (
+            f"Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action.' +  'Return a json like {multiple:True} or {multiple:False} to indicate whether the player has performed multiple actions."
+            f"Consider only one player and their input (the id is {player_id}). Return only json. The json should have the word 'multiple' as the only key and either 'true' or 'false' as the value, nothing more."
+        )
         multiple_actions = await self.get_binary_answer(multiple_actions_prompt, initial_history, 'multiple')
         if multiple_actions:
             return 'Please perform one action per turn\n'
@@ -119,6 +122,7 @@ class EngineGameObject(GameObject):
             f"The player with the lowest number has the most priority in their action. For example, if player with priority 0 attemps to break a vase and player with priority 2 attempts to take it, the vase should be broken"
             f"return a new JSON where the keys are the player ids and the commands take into consideration the actions of other players according to priority"
             f"Each command your return should overwrite the player's initial command. If a player says 'I break the vase' and another player says 'I take the vase' you can change the lowest priority one to 'I fail to ...'. Consider the interactions between the player's commands for all players."
+            f"Your task right now is not to reply to the player! You should merely rephrase the player's initial input in a way the respects priority order"
             f"If a player's input is missing or is N/A, change that to something like 'i wait' or 'i pass the turn'"
         )
         json_player_prompts = await self.chat_with_backbone(harmonization_prompt, self._my_history, expect_json=True)
@@ -126,14 +130,14 @@ class EngineGameObject(GameObject):
         
         tasks = []
         for player_id, harmonized_input in dict_player_prompts.items():
-            tasks.append(asyncio.create_task(self.process_one_player_input(harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history))))
+            tasks.append(asyncio.create_task(self.process_one_player_input(player_id, harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history))))
         responses_to_players_list = await asyncio.gather(*tasks)
         responses_to_players = {}
         for player_id, response in zip(dict_player_prompts.keys(), responses_to_players_list):
             responses_to_players[player_id] = response
         
         self.game_state_update_replies = ''
-        for _ in range(3):
+        for _ in range(2):
             await self.update_current_game_state(responses_to_players)
         
         final_responses_prompt = (
