@@ -144,11 +144,25 @@ class Game():
         return game_state
         '''
     
+    import json
+
     async def initialize_player_objects(self, player_id):
         """
-        Initialize player_body_{player_id} and inventory_{player_id} for a new player.
+        Initialize player_body_{player_id} for a new player.
         """
-        # Define templates for player body and inventory
+        # Load template from JSON file
+        try:
+            with open('player_template.json', 'r') as f:
+                template_data = json.load(f)
+        except FileNotFoundError:
+            # Fallback template if file not found
+            template_data = {
+                "description": "A player avatar, full of physical characteristics. A regular, able adventurer.",
+                "initial_state": {"is_injured": False, "has_hands": True},
+                "initial_tools": {}
+            }
+
+        # Define base prompt template
         player_body_template = (
             'You simulate an object within a scene for a videogame. '
             'Keep track of your own description, state, and tools, using common sense to answer questions or change your state. '
@@ -167,67 +181,27 @@ class Game():
         body_key = f"player_body_{player_id}"
         if body_key not in self.game_objects:
             self.game_objects[body_key] = GameObject(
-                initial_state={"is_injured": False, "has_hands": True},
-                initial_tools={}
+                initial_state=template_data["initial_state"],
+                initial_tools=template_data["initial_tools"]
             )
             self.game_objects[body_key].object_name = body_key
             body_prompt = (
                 player_body_template
                 .replace('<object_name>', body_key)
-                .replace('<my_description>', "A player avatar, full of physical characteristics. A regular, able adventurer.")
-                .replace('<my_state>', json.dumps({"is_injured": False, "has_hands": True}))
-                .replace('<my_tools>', json.dumps({}))
+                .replace('<my_description>', template_data["description"])
+                .replace('<my_state>', json.dumps(template_data["initial_state"]))
+                .replace('<my_tools>', json.dumps(template_data["initial_tools"]))
             )
             self.game_objects[body_key].set_system_message(body_prompt)
             await self.game_objects[body_key].process_game_input(
-                f'This is your current state: "{json.dumps({"is_injured": False, "has_hands": True})}"'
+                f'This is your current state: "{json.dumps(template_data["initial_state"])}"'
             )
             await self.add_to_progress_queue(f'<display_to_player> Player {player_id} body initialized.\n</display_to_player>')
             # Add to engine's active objects
             if self.engine_game_object:
-                self.engine_game_object.add_active_game_object(body_key, self.game_objects[body_key])
+                await self.engine_game_object.add_active_game_object(body_key, self.game_objects[body_key])
 
-        '''
-        testing adding just player body
-        # Inventory
-        inventory_key = f"inventory_{player_id}"
-        if inventory_key not in self.game_objects:
-            self.game_objects[inventory_key] = GameObject(
-                initial_state={"contents": []},
-                initial_tools={
-                    "add_item": {
-                        "name": "add_item",
-                        "description": "Adds an item to the inventory",
-                        "function": lambda self, item: self.update_state({"contents": self.state["contents"] + [item]})
-                    },
-                    "remove_item": {
-                        "name": "remove_item",
-                        "description": "Removes an item from the inventory",
-                        "function": lambda self, item: self.update_state({"contents": [i for i in self.state["contents"] if i != item]})
-                    }
-                }
-            )
-            self.game_objects[inventory_key].object_name = inventory_key
-            inventory_prompt = (
-                player_body_template
-                .replace('<object_name>', inventory_key)
-                .replace('<my_description>', "My set of possessions. It is initially empty.")
-                .replace('<my_state>', json.dumps({"contents": []}))
-                .replace('<my_tools>', json.dumps({"add_item": {"name": "add_item", "description": "Adds an item to the inventory"},
-                                                  "remove_item": {"name": "remove_item", "description": "Removes an item from the inventory"}}))
-            )
-            self.game_objects[inventory_key].set_system_message(inventory_prompt)
-            # Reattach lambda functions to tools
-            self.game_objects[inventory_key].tools["add_item"]["function"] = lambda self, item: self.update_state({"contents": self.state["contents"] + [item]})
-            self.game_objects[inventory_key].tools["remove_item"]["function"] = lambda self, item: self.update_state({"contents": [i for i in self.state["contents"] if i != item]})
-            await self.game_objects[inventory_key].process_game_input(
-                f'This is your current state: "{json.dumps({"contents": []})}"'
-            )
-            await self.add_to_progress_queue(f'<display_to_player> Player {player_id} inventory initialized.\n</display_to_player>')
-            # Add to engine's active objects
-            if self.engine_game_object:
-                self.engine_game_object.add_active_game_object(inventory_key, self.game_objects[inventory_key])
-        '''
+       
         
     async def initialize_engine_simulator(self):
         await self.add_to_progress_queue('<display_to_player>Initializing game engine...\n</display_to_player>')
@@ -254,7 +228,7 @@ class Game():
         self.engine_game_object.losing_message = self.losing_message
         await self.engine_game_object.process_game_input(engine_initialization_prompt)
         for k, v in self.game_objects.items():
-            self.engine_game_object.add_active_game_object(k, v)
+            await self.engine_game_object.add_active_game_object(k, v)
         self.engine_game_object.game_state = game_state
         self.engine_game_object.object_name = 'game_engine'
         self.engine_game_object.roles_string = ''

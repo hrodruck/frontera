@@ -13,8 +13,10 @@ class EngineGameObject(GameObject):
         self.losing_message = '' #set externally
         self.comms_backbone.model_string = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
         #self.comms_backbone.model_string = "meta-llama/Meta-Llama-3.1-405B-Instruct"
+        self.round_lock = asyncio.Lock()
         self.round_counter = 0
         self.update_game_state_task = None
+        self.number_of_rounds_to_checkpoint_history = 1
         self.roles_string = ''
     
     async def get_binary_answer(self, prompt, history, key):
@@ -23,12 +25,13 @@ class EngineGameObject(GameObject):
         dict_answer = self.comms_backbone.load_json_from_llm(response)
         return dict_answer[key]
     
-    def add_active_game_object(self, key, new_game_object):
-        self.active_game_objects[key] = new_game_object #TODO throw error if game object already exists
+    async def add_active_game_object(self, key, new_game_object):
+        async with self.round_lock:
+            self.active_game_objects[key] = new_game_object #TODO throw error if game object already exists
     
-    def deactivate_game_object(self, key):
-        self.active_game_objects[key].is_active=False
-        del self.active_game_objects[key]
+    async def deactivate_game_object(self, key):
+        async with self.round_lock:
+            del self.active_game_objects[key]
     
     async def get_game_state(self):
         game_state = {k: json.dumps(v.state) for k, v in self.active_game_objects.items()}
@@ -66,20 +69,13 @@ class EngineGameObject(GameObject):
         if multiple_actions:
             return 'Please perform one action per turn\n'
         
-        '''
-        #related to the speed optimization
-        if self.round_counter > 0:
-            json.dumps(await self.get_game_state()) = await self.update_game_state_task
-        '''
-        
-        my_history_initial_len = len(initial_history)
-        
-        
         game_object_names = list(self.active_game_objects.keys())
         
         tasks = [ self.sanity_bluff_check(player_input, game_object_names, json.dumps(await self.get_game_state()), aux_bluff_history), self.ingame_success_check(player_input, game_object_names, json.dumps(await self.get_game_state()), aux_success_history)]
         bluff, success = await asyncio.gather(*tasks)
         
+        '''        
+        my_history_initial_len = len(initial_history)
         
         if not bluff and success:
             aux_player_history = initial_history + aux_success_history
@@ -94,71 +90,91 @@ class EngineGameObject(GameObject):
             else: #that is, "if not sucess"
                 aux_player_history = deepcopy(aux_success_history[my_history_initial_len:])
             failure_prompt = f"It seems the player has failed in attempting an action. The action I'm talking about is {player_input}. Reflect on the reasons for this failure."
-            failure_reasoning = await self.chat_with_backbone(failure_prompt, aux_player_history, keep_history=True, lock_history=False)
+            failure_reasoning = await self.chat_with_backbone(failure_prompt, aux_player_history, keep_history=False, lock_history=True)
         response_prompt = "Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff.\
         Do not reveal secret or confidential game information, such as a hidden object.\
         If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response.\
         Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone.\
         Be conversational. Avoid long descriptions if possible.\
         Remember the player's initial command: {player_input}."
-    
+        '''
+        
+        if bluff:
+            aux_player_history = aux_bluff_history
+        else:
+            aux_player_history = aux_success_history
+            
+        response_prompt = (
+            f"Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff."
+            f"Do not reveal secret or confidential game information, such as a hidden object."
+            f"If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response."
+            f"Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone."
+            f"Be conversational. Avoid long descriptions."
+            f"Remember the player's initial command: {player_input}."
+            f"If there was any problem with the user's action (such as bluffing or not having enough priority in relation to other players), make sure to include that."
+        )
+        
         response_to_player = await self.chat_with_backbone(response_prompt, aux_player_history, keep_history=True, lock_history=False)
         response_to_player = '\n\n' + response_to_player
         return response_to_player
     
     async def process_player_input(self, player_input):
-        await self.add_to_progress_queue("\n\n<display_to_player>Received player input!\n</display_to_player>")
-        
-        if self.game_ended:
-            await self.add_to_progress_queue("The game has ended!")
-            return "The game has ended!\n\n", True
-        
-        if self.round_counter % 1 == 0:
-            self.history_checkpoint()
-            for k, v in self.active_game_objects.items():
-                v.history_checkpoint() 
-        
-        harmonization_prompt = (
-            f"These are the commands of every player for this round: {json.dumps(player_input)}"
-            f"The player with the lowest number has the most priority in their action. For example, if player with priority 0 attemps to break a vase and player with priority 2 attempts to take it, the vase should be broken"
-            f"return a new JSON where the keys are the player ids and the commands take into consideration the actions of other players according to priority"
-            f"Each command your return should overwrite the player's initial command. If a player says 'I break the vase' and another player says 'I take the vase' you can change the lowest priority one to 'I fail to ...'. Consider the interactions between the player's commands for all players."
-            f"Your task right now is not to reply to the player! You should merely rephrase the player's initial input in a way the respects priority order"
-            f"If a player's input is missing or is N/A, change that to something like 'i wait' or 'i pass the turn'"
-        )
-        json_player_prompts = await self.chat_with_backbone(harmonization_prompt, self._my_history, expect_json=True)
-        dict_player_prompts = self.comms_backbone.load_json_from_llm(json_player_prompts)
-        
-        tasks = []
-        for player_id, harmonized_input in dict_player_prompts.items():
-            tasks.append(asyncio.create_task(self.process_one_player_input(player_id, harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history))))
-        responses_to_players_list = await asyncio.gather(*tasks)
-        responses_to_players = {}
-        for player_id, response in zip(dict_player_prompts.keys(), responses_to_players_list):
-            responses_to_players[player_id] = response
-        
-        self.game_state_update_replies = ''
-        for _ in range(2):
-            await self.update_current_game_state(responses_to_players)
-        
-        final_responses_prompt = (
-            f"Update the message to each player, considering the whole scenario. This is the earlier message to each player per player_id: {json.dumps(responses_to_players)}"
-            f"Remember the players (if there's more than one) are in a shared scenario. Also recall the game state, {json.dumps(await self.get_game_state())}"
-            f"Reply a JSON where each key is the player id and the value is the updated description, tailored to each player."
-            f"Only reply the json, nothing else."
-        )
-        json_final_responses = await self.chat_with_backbone(final_responses_prompt, self._my_history)
-        final_responses = self.comms_backbone.load_json_from_llm(json_final_responses)
-        
-        if self.round_counter % 1 == 0:
-            self.forget_old_history()
-            for k, v in self.active_game_objects.items():
-                v.forget_old_history()
-        
-        self.round_counter += 1
-        
-        
-        return final_responses
+        async with self.round_lock:
+            await self.add_to_progress_queue("\n\n<display_to_player>Received player input!\n</display_to_player>")
+            
+            if self.game_ended:
+                await self.add_to_progress_queue("The game has ended!")
+                return "The game has ended!\n\n", True
+            
+            if self.round_counter % self.number_of_rounds_to_checkpoint_history == 0:
+                self.history_checkpoint()
+                for k, v in self.active_game_objects.items():
+                    v.history_checkpoint() 
+            
+            harmonization_prompt = (
+                f"These are the commands of every player for this round: {json.dumps(player_input)}"
+                f"The player with the lowest number has the most priority in their action. For example, if player with priority 0 attemps to break a vase and player with priority 2 attempts to take it, the vase should be broken"
+                f"return a new JSON where the keys are the player ids and the commands take into consideration the actions of other players according to priority"
+                f"Each command your return should overwrite the player's initial command. If a player says 'I break the vase' and another player says 'I take the vase' you can change the lowest priority one to 'I fail to ...'. Consider the interactions between the player's commands for all players."
+                f"Your task right now is not to reply to the player! You should merely rephrase the player's initial input in a way the respects priority order"
+                f"If a player's input is missing or is N/A, change that to something like 'i wait' or 'i pass the turn'"
+            )
+            json_player_prompts = await self.chat_with_backbone(harmonization_prompt, self._my_history, expect_json=True)
+            dict_player_prompts = self.comms_backbone.load_json_from_llm(json_player_prompts)
+            
+            tasks = []
+            for player_id, harmonized_input in dict_player_prompts.items():
+                tasks.append(asyncio.create_task(self.process_one_player_input(player_id, harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history))))
+            responses_to_players_list = await asyncio.gather(*tasks)
+            responses_to_players = {}
+            for player_id, response in zip(dict_player_prompts.keys(), responses_to_players_list):
+                responses_to_players[player_id] = response
+            
+            self.game_state_update_replies = ''
+            for _ in range(1):
+                await self.update_current_game_state(responses_to_players)
+            
+            final_responses_prompt = (
+                f"Update the message to each player, considering the whole scenario. This is the earlier message to each player per player_id: {json.dumps(responses_to_players)}"
+                f"Remember the players (if there's more than one) are in a shared scenario. Also recall the game state, {json.dumps(await self.get_game_state())}"
+                f"Reply a JSON where each key is the player id and the value is the updated description, tailored to each player."
+                f"Only reply the json, nothing else."
+            )
+            json_final_responses = await self.chat_with_backbone(final_responses_prompt, self._my_history)
+            final_responses = self.comms_backbone.load_json_from_llm(json_final_responses)
+            
+            
+            if self.round_counter % self.number_of_rounds_to_checkpoint_history == self.number_of_rounds_to_checkpoint_history - 1:
+                self.forget_old_history()
+                for k, v in self.active_game_objects.items():
+                    v.forget_old_history()
+            
+            self.round_counter += 1
+            
+            for k, v in final_responses.items():
+                final_responses[k] = f"This is round number {self.round_counter}.\n{v}"
+            
+            return final_responses
 
     async def sanity_bluff_check(self, player_input, game_object_names, game_state, aux_bluff_history):
         await self.add_to_progress_queue("<display_to_player>##Checking for bluffs...##\n</display_to_player>")
@@ -183,10 +199,12 @@ class EngineGameObject(GameObject):
                                 'I defeat the enemy'\
                                 "
 
-        
+        '''
         await self.chat_with_backbone(bluff_prompt, aux_bluff_history)
-        bluff_answers = await self.ask_away(game_object_names, aux_bluff_history, player_input)
         
+        
+        bluff_answers = await self.ask_away(game_object_names, aux_bluff_history, player_input)
+                
         bluff_eval_prompt = f"Here are the answers of each game object: {bluff_answers}.\n Is the player desired action ({player_input}) reasonable after all?\
             However, if the player is relying on knowledge they don't possess, that is a bluff.\
             Remember: Ignore the need to use any tool mentioned by gameobjects\
@@ -196,6 +214,15 @@ class EngineGameObject(GameObject):
         await self.chat_with_backbone (bluff_eval_prompt, aux_bluff_history)
         
         binary_bluff_prompt="Return wether the player was bluffing or not. Return a json like {bluff:True} or {bluff:False}. Do not mention previous questions or answers, only a json with the \"bluff\" key and either the value True or the value False. Your response should be based on your previous reasoning. If in doubt, lean towards stating \"False\"." 
+        return await self.get_binary_answer(binary_bluff_prompt, aux_bluff_history, 'bluff')
+        '''
+        
+        binary_bluff_prompt = (
+            f"{bluff_prompt}"
+            f"Here is the state of each game object: {json.dumps(await self.get_game_state())}.\n Is the player desired action ({player_input}) reasonable after all?"
+            f"Do not let the player perform actions such as the following, they are bluffs:{bluff_examples_prompt}."
+            f"Return wether the player was bluffing or not. Return a json like bluff:True or bluff:False. Do not mention anything else, only a json with the \"bluff\" key and either the value True or the value False. If in doubt, lean towards stating \"False\"."
+        )
         return await self.get_binary_answer(binary_bluff_prompt, aux_bluff_history, 'bluff')
         
     async def ingame_success_check(self, player_input, game_object_names, game_state, aux_success_history):
@@ -210,6 +237,7 @@ class EngineGameObject(GameObject):
             This is what the player said:{player_input}.\
             Be brief and concise in all your statements."
         
+        '''
         await self.chat_with_backbone(success_questions_prompt, aux_success_history)
         success_answers = await self.ask_away(game_object_names, aux_success_history, player_input)
         
@@ -218,6 +246,15 @@ class EngineGameObject(GameObject):
         await self.chat_with_backbone(success_eval_prompt, aux_success_history)
         
         binary_success_prompt="Return wether the player had sucess in their action or not. Return a json like {success:True} or {success:False}. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False. Your response should be based on your previous reasoning." 
+        return await self.get_binary_answer(binary_success_prompt, aux_success_history, 'success')
+        '''
+        
+        binary_success_prompt=(
+            f"{success_questions_prompt}"
+            f"Here is the state of each game object: {json.dumps(await self.get_game_state())}.\n From an in-game perspective, can the player do what they are trying to do?"
+            f"Lean towards player success."
+            f"Return wether the player had sucess in their action or not. Return a json like success:True or success:False. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False." 
+        )
         return await self.get_binary_answer(binary_success_prompt, aux_success_history, 'success')
 
     async def ask_away(self, game_object_names, history, player_input):        

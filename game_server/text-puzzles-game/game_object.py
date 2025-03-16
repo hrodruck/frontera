@@ -120,14 +120,13 @@ class GameObject:
                     f"Example of a tool without parameters: "
                     f"'unlock': {{'name': 'unlock', 'description': 'Unlocks the object if locked', 'function': 'lambda self: self.update_state({{\"is_locked\": False}}) if \"is_locked\" in self.state else None', 'reviewed': False}}. "
                     f"Ensure the proposed tool’s function and parameters (if any) are relevant to the instruction '{update}' and the current state."
+                    f"Your order or preference should be use_tool, no_act, fetch_tool and, finally, propose_tool."
                 )
                 reply = await self.chat_with_backbone(prompt, self._my_history, expect_json=True, keep_history=keep_history)
                 response_dict = self.comms_backbone.load_json_from_llm(reply)
                 old_state = self.state.copy()
                 update_message = await self.handle_update(response_dict, update)
                 print (f"{self.object_name}'s tool update message:\n{update_message}\n")
-                prompt = f"State updated from {json.dumps(old_state)} to: {json.dumps(self.state)}, with the following message from tool: {update_message}"
-                reply = await self.chat_with_backbone(prompt, self._my_history, keep_history=keep_history)
             else:
                 # Default to query if unclear
                 query = input_contents.replace("Query:", "").strip()

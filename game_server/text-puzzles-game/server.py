@@ -121,7 +121,9 @@ async def process_input(data: CommandData):
     session_id = data.session_id
     game = await get_game_from_session(session_id)
     player_id = data.player_id
-    if player_id not in buffered_player_commands[session_id].keys():
+    if session_id not in buffered_player_commands:
+        response = "You are somehow sending commands a non-existing game!"
+    elif player_id not in buffered_player_commands[session_id].keys():
         async with player_commands_lock:
             buffered_player_commands[session_id][player_id] = data.command
         response = "Your command was recorded and will be executed soon!"

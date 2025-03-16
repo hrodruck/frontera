@@ -5,28 +5,40 @@
         "function": "lambda self: self.update_state({\"durability\": 0, \"is_broken\": True})",
         "reviewed": true
     },
-    "unlock": {
-        "name": "unlock",
-        "description": "Unlocks the object if it has a locked state",
-        "function": "lambda self: self.update_state({\"is_locked\": False}) if \"is_locked\" in self.state else None",
+    "observe": {
+        "name": "observe",
+        "description": "Updates surroundings by merging new data into the existing dictionary",
+        "function": "lambda self, data: self.update_state({\"surroundings\": {**self.state.get(\"surroundings\", {}), **data}}) if isinstance(data, dict) else {'success': False, 'message': 'Data must be a dictionary'}",
         "reviewed": true
     },
-    "change_description": {
-        "name": "change_description",
-        "description": "Updates the description of the object to a new provided string",
-        "function": "lambda self, new_description: self.update_state({\"description\": new_description}) if isinstance(new_description, str) else None",
+    "pick_up": {
+        "name": "pick_up",
+        "description": "Adds an item to the player's inventory",
+        "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]})",
         "reviewed": true
     },
-    "pick_up_item": {
-        "name": "pick_up_item",
-        "description": "Picks up an item if conditions are met",
-        "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]}) if \"has_hidden_item\" in self.state and self.state[\"has_hidden_item\"] and not self.state.get(\"hands_in_use\", False) else {\"success\": False, \"message\": \"Hands are full or no item to pick up\"}",
+    "hold": {
+        "name": "hold",
+        "description": "Marks an item from inventory as being held",
+        "function": "lambda self, item: self.update_state({\"held_item\": item}) if 'inventory' in self.state and item in self.state['inventory'] else {'success': False, 'message': 'Item not in inventory'}",
         "reviewed": true
     },
-    "hold_item": {
-        "name": "hold_item",
-        "description": "Updates the state to reflect that the player is holding a specific item",
-        "function": "lambda self, item: self.update_state({\"held_item\": item}) if \"held_item\" in self.state else self.update_state({\"held_item\": item, \"hands_in_use\": True})",
+    "release": {
+        "name": "release",
+        "description": "Stops holding an item, optionally removing it from inventory",
+        "function": "lambda self, item, remove_from_inventory=False: self.update_state({\"held_item\": None, \"inventory\": [i for i in self.state['inventory'] if i != item] if remove_from_inventory else self.state['inventory']}) if 'held_item' in self.state and self.state['held_item'] == item else {'success': False, 'message': 'Item not held'}",
+        "reviewed": true
+    },
+    "consume_fuel": {
+        "name": "consume_fuel",
+        "description": "Reduces fuel level, deactivates object if depleted",
+        "function": "lambda self, amount: self.update_state({\"fuel\": self.state['fuel'] - amount}) if 'fuel' in self.state and self.state['fuel'] > amount else self.update_state({\"fuel\": 0, \"is_active\": False}) if 'fuel' in self.state else {'success': False, 'message': 'Fuel not found'}",
+        "reviewed": true
+    },
+    "consume_health": {
+        "name": "consume_health",
+        "description": "Reduces health level, marks player as dead if depleted",
+        "function": "lambda self, amount: self.update_state({\"health\": self.state['health'] - amount}) if 'health' in self.state and self.state['health'] > amount else self.update_state({\"health\": 0, \"is_alive\": False}) if 'health' in self.state else {'success': False, 'message': 'Health not found'}",
         "reviewed": true
     }
 }

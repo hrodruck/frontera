@@ -1,46 +1,39 @@
-const { getData, saveData } = require('../data');
+// goodbye.js
+const { getData } = require('../data');
+const { setPlayerLoggedOut } = require('../playerState');
 
 async function handleGoodbye(message) {
   const user = message.author;
   const data = getData();
 
-  if (!data.users[user.id] || !data.users[user.id].currentZone.zone || !data.users[user.id].isLoggedIn) {
-    await message.reply("You’re not currently logged into any zone!");
+  if (!data.users[user.id] || !data.users[user.id].isLoggedIn) {
+    await message.reply("You’re not currently logged in!");
     return;
   }
 
-  const zone = data.users[user.id].currentZone.zone;
-  const subzone = data.users[user.id].currentZone.subzone;
-  const zoneChannel = message.guild.channels.cache.find(ch => ch.name === zone && ch.type === 0);
-
   try {
-    // Reset hasSeenMessage for the current zone
-    if (data.users[user.id].zones?.[zone]) {
-      data.users[user.id].zones[zone].hasSeenMessage = false;
-      data.users[user.id].zones[zone].subzones[subzone].hasSeenMessage = false;
+    const threadId = data.users[user.id].currentThreadId;
+    const thread = threadId ? message.client.channels.cache.get(threadId) : null;
+    if (thread && !thread.archived) {
+      await thread.send(`${user}, you log off. Goodbye!`);
+      await thread.members.remove(user.id);
+      await thread.delete(); // Normal case: delete the thread
+    } else {
+      // If thread not found in cache, just log out without error
+      setPlayerLoggedOut(user.id); // Updates state and stops polling
+      await message.reply("You’ve logged off successfully! (Thread not found, state cleared.)");
+      return;
     }
 
-    if (zoneChannel) {
-      await zoneChannel.threads.fetchActive();
-      const threadName = `${zone}-${user.username}`;
-      const thread = zoneChannel.threads.cache.find(
-        (thread) => thread.name === threadName && thread.archived === false
-      );
-
-      if (thread) {
-        await thread.send(`${user}, you log off from ${zone}. Goodbye!`);
-        await thread.members.remove(user.id);
-        await thread.delete(); // Changed from setArchived(true) to delete()
-      }
-    }
-
-    if (data.users[user.id].isLoggedIn) {
-      data.users[user.id].isLoggedIn = false;
-      saveData(data); // Updated to pass data parameter
-    }
+    setPlayerLoggedOut(user.id); // Updates state and stops polling
   } catch (error) {
     console.error(`Error in handleGoodbye for ${user.tag}:`, error);
-    await message.reply('Something went wrong while logging off. Try again later!');
+    const threadId = data.users[user.id].currentThreadId;
+    const thread = threadId ? message.client.channels.cache.get(threadId) : null;
+    if (thread !== null){
+        await thread.delete();
+    }
+    setPlayerLoggedOut(user.id); // Ensure logout happens
   }
 }
 

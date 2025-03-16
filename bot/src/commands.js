@@ -5,7 +5,7 @@ const { handleLook } = require('./commands/look');
 const { handleMove } = require('./commands/move');
 const { handleSpk } = require('./commands/spk');
 
-async function handleMessage(message) {
+async function handleMessage(message, client) {
   if (message.author.bot || !message.content.startsWith('!')) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
@@ -15,7 +15,7 @@ async function handleMessage(message) {
 
   try {
     if (command === 'explore') {
-      await handleExplore(message);
+      await handleExplore(message, client);
     } else if (command === 'goodbye') {
       await handleGoodbye(message);
     } else {
