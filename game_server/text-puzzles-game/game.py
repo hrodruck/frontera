@@ -1,15 +1,13 @@
 import asyncio
 import json
-import copy
-import os
-import re
 import random
-import aiofiles
 from engine_game_object import EngineGameObject
 from game_object import GameObject
+from commands.spk import handle_spk
+from commands.move import handle_move
+from commands.look import handle_look
 
-class Game():
-
+class Game:
     def __init__(self):
         self.game_ended = False
         self.game_progress_queue = ''
@@ -18,7 +16,71 @@ class Game():
         self.engine_game_object = None
         self.async_gameobject_init = None
         self.active_players = set()
+        self.zones = self.load_zones()  # Load zones data
         print("Engine is running. Use set_scene and start_game!")
+
+    def load_zones(self):
+        """Load zones.json from data/ directory."""
+        try:
+            with open('data/zones.json', 'r') as f:
+                return json.load(f)["zones"]
+        except Exception as e:
+            print(f"Error loading zones: {e}")
+            return {}
+
+    async def process_input(self, p_in):
+        """Process commands from players, routing to specific handlers."""
+        if not p_in or not self.async_gameobject_init:
+            return
+
+        if self.async_gameobject_init != 'Done':
+            await asyncio.gather(*self.async_gameobject_init)
+            self.async_gameobject_init = 'Done'
+
+        # Handle new players
+        new_players = await self.login_new_players(p_in)
+
+        # Parse and route commands
+        p_in_random = list(p_in.items())
+        random.shuffle(p_in_random)
+        player_input_dict = {}
+        for new_player_id in new_players:
+            command = f"A new player with id {new_player_id} has logged into the game."
+            player_input_dict[new_player_id] = f"{command}. Login priority number: -1\n"
+        for random_index, (player_id, command) in enumerate(p_in_random):
+            prefix, args = self.parse_command(command)
+            handler = {
+                "!spk": handle_spk,
+                "!move": handle_move,
+                "!look": handle_look
+            }.get(prefix, handle_spk)  # Default to spk for unrecognized commands
+            response = await handler(self, player_id, args)
+            player_input_dict[player_id] = f"This is the input of the player with id {player_id}: {response}. Priority number: {random_index}\n"
+
+        # Process through engine and yield responses
+        all_player_responses = await self.engine_game_object.process_player_input(player_input_dict)
+        await self.print_game_state_and_tools()
+
+        # Save tools dataset
+        async with aiofiles.open("data/tools_dataset.json", 'w') as f:
+            await f.write(json.dumps(GameObject.tools_dataset, indent=4))
+
+        for player_id, tailored_response in all_player_responses.items():
+            yield player_id, tailored_response
+
+    def parse_command(self, command):
+        """Parse command into prefix and arguments."""
+        parts = command.strip().split(" ", 1)
+        prefix = parts[0]
+        args = parts[1] if len(parts) > 1 else ""
+        return prefix, args
+
+    # Other methods (set_scene, start_game, etc.) remain unchanged for now
+    # Add get_game_state for handlers to use
+    async def get_game_state(self):
+        await self.add_to_progress_queue('<display_to_player>Computing game state...\n</display_to_player>')
+        game_state = {k: json.dumps(v.state) for k, v in self.game_objects.items()}
+        return game_state
 
     async def get_progress_queue(self):
         if not self.game_ended:
@@ -233,45 +295,6 @@ class Game():
         self.engine_game_object.object_name = 'game_engine'
         self.engine_game_object.roles_string = ''
 
-    async def process_input(self, p_in):
-        """Process commands from existing players"""
-        if not p_in or not self.async_gameobject_init:
-            return
-        
-        if self.async_gameobject_init != 'Done':
-            await asyncio.gather(*self.async_gameobject_init)
-            self.async_gameobject_init = 'Done'
-            
-        # Ensure new players are logged in first
-        new_players = await self.login_new_players(p_in)            
-        
-        # Process commands for all players
-        p_in_random = list(p_in.items())
-        random.shuffle(p_in_random)
-        player_input_dict = {}
-        for new_player_id in new_players:
-            command = f"A new player with id {new_player_id} has logged into the game. Their body and inventory have been added as gameobjects."
-            prompt = f"{command}. Login priority number: -1\n"
-            player_input_dict[new_player_id] = prompt   
-        for random_index, (player_id, command) in enumerate(p_in_random):
-            prompt = f"This is the input of the player with id {player_id}: {command}. Priority number:{random_index}\n"
-            if player_id in player_input_dict.keys():
-                player_input_dict[player_id] += prompt   
-            else:
-                player_input_dict[player_id] = prompt
-        all_player_responses = await self.engine_game_object.process_player_input(player_input_dict) #currently, the game engine covers a zone. Will change when we have more zones in the game
-        
-        await self.print_game_state_and_tools()
-        
-        tools_dataset_file = "tools_dataset.json"
-        try:
-            async with aiofiles.open(tools_dataset_file, 'w') as f:
-                await f.write(json.dumps(GameObject.tools_dataset, indent=4))
-        except Exception as e:
-            print(f"Error saving tools_dataset to JSON: {e}")
-        
-        for player_id, tailored_response in all_player_responses.items():
-            yield player_id, tailored_response
             
     async def login_new_players(self, p_in):
         """Handle initialization and login of new players"""
