@@ -32,18 +32,21 @@ async function handleMessage(message, client) {
         return;
       }
 
-      const expectedThreadName = `${userData.currentZone.zone}-${message.author.username}`;
+      const expectedThreadName = `explore-${message.author.username}`;
       if (message.channel.name !== expectedThreadName) {
         await message.reply("This command must be used in your own active exploration thread!");
         return;
       }
 
+      // Delegate commands to their respective handlers
       if (command === 'look') {
         await handleLook(message);
-      } else if (command === 'move') { 
+      } else if (command === 'move') {
         await handleMove(message, args);
       } else if (command === 'spk') {
         await handleSpk(message, args);
+      } else {
+        await message.reply("Unknown command! Try !spk, !move, or !look.");
       }
     }
   } catch (error) {
@@ -53,4 +56,3 @@ async function handleMessage(message, client) {
 }
 
 module.exports = { handleMessage };
-

@@ -19,7 +19,7 @@ async function handleSpk(message, args) {
       return;
     }
 
-    const inputResponse = await processInput(SESSION_ID, USER_ID, playerInput);
+    const inputResponse = await processInput(SESSION_ID, USER_ID, `!spk ${playerInput}`);
     const replyMessage = inputResponse || "No response from the game.";
     await message.reply(replyMessage);
     updateLastActivity(USER_ID, message.channel); // Reset AFK timer on input

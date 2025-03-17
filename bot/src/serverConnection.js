@@ -1,15 +1,13 @@
-// serverConnection.js
 require('dotenv').config();
 const axios = require('axios');
 
 const SERVER_URL = process.env.SERVER_URL;
 
-async function startGame(sessionId, playerId, roomData) {
+async function startGame(sessionId, playerId) {
   try {
     const response = await axios.post(`${SERVER_URL}/api/start-game`, {
-      ...roomData,
       session_id: sessionId,
-      player_id: playerId, // Add player_id to the request
+      player_id: playerId,
     });
     console.log('Game started:', response.data.message);
     return response.data;

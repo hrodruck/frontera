@@ -13,7 +13,7 @@ class GameObject:
     @classmethod
     def load_tools_dataset(cls):
         """Load tools_dataset from JSON file and recreate lambda functions using eval."""
-        tools_dataset_file = "tools_dataset.json"
+        tools_dataset_file = "data/tools_dataset.json"
         if os.path.exists(tools_dataset_file):
             try:
                 with open(tools_dataset_file, 'r') as f:
@@ -156,7 +156,7 @@ class GameObject:
 
     async def handle_update(self, response_dict, update_instruction):
         """
-        Apply tool-based updates and return the new state description.
+        Apply tool-based updates and return the new state.
         Supports dynamic parameter detection and immediate execution of proposed tools.
         """
         action = response_dict.get("action")

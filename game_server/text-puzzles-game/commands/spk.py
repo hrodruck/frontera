@@ -1,5 +1,3 @@
-async def handle_spk(game, player_id, args):
-    """Handle freeform !spk commands."""
-    if not args:
-        return "Please provide an action after !spk (e.g., !spk Look around)"
-    return args  # Pass raw input to engine for processing
+async def handle_spk(game, player_input_dict, zone, subzone):
+    """Handle freeform !spk commands, passing them to the engine for processing."""
+    return await game.engine_game_objects[zone][subzone].process_player_input(player_input_dict)

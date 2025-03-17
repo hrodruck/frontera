@@ -1,0 +1,103 @@
+{
+  "zones": {
+    "cinthria": {
+      "description": "Welcome to the town of Cinthria!",
+      "subzones": {
+        "prison-vault": {
+            "short_description": "An unwelcoming place",
+            "long_description": "This is a place to store prisoners in the city of Cinthria. You have no idea why you're here. Maybe there's a way to get out...",
+            "objects": {
+              "door": {
+                "initial_state": {
+                  "durability": 100,
+                  "is_locked": true,
+                  "is_broken": false,
+                  "keyhole_used": false,
+                  "description": "A large, old wooden door with an inconspicuous keyhole. It is locked and unlocks if key_001 is inserted into the keyhole."
+                },
+                "tools": {
+                  "unlock": {
+                    "name": "unlock",
+                    "description": "Unlocks the door if a key is used",
+                    "function": "lambda self: self.update_state({\"is_locked\": False, \"keyhole_used\": True})"
+                  }
+                }
+              },
+              "doormat": {
+                "initial_state": {
+                  "is_flammable": true,
+                  "is_burned": false,
+                  "key_hidden_under": true,
+                  "description": "A flammable doormat next to the door. A key is concealed underneath."
+                },
+                "tools": {
+                  "burn": {
+                    "name": "burn",
+                    "description": "Sets the doormat on fire if exposed to a flame",
+                    "function": "lambda self: self.update_state({\"is_burned\": True, \"key_hidden_under\": False}) if self.state[\"is_flammable\"] else None"
+                  },
+                  "lift": {
+                    "name": "lift",
+                    "description": "Reveals the key hidden under the doormat",
+                    "function": "lambda self: self.update_state({\"key_hidden_under\": False})"
+                  }
+                }
+              },
+              "torch": {
+                "initial_state": {
+                  "is_lit": true,
+                  "is_movable": true,
+                  "is_snuffed": false,
+                  "fuel_level": 100,
+                  "description": "The only light source in the room, burning brightly with plenty of fuel. It can be moved or snuffed out."
+                },
+                "tools": {
+                  "snuff": {
+                    "name": "snuff",
+                    "description": "Puts out the torch",
+                    "function": "lambda self: self.update_state({\"is_lit\": False, \"is_snuffed\": True})"
+                  },
+                  "move": {
+                    "name": "move",
+                    "description": "Allows the torch to be picked up or repositioned",
+                    "function": "lambda self: self.update_state({\"is_movable\": False})"
+                  }
+                }
+              },
+              "key_001": {
+                "initial_state": {
+                  "is_hidden": true,
+                  "location": "under_doormat",
+                  "is_held": false,
+                  "description": "A key hidden under the doormat. This is key_001."
+                },
+                "tools": {
+                  "reveal": {
+                    "name": "reveal",
+                    "description": "Makes the key visible and available",
+                    "function": "lambda self: self.update_state({\"is_hidden\": False})"
+                  },
+                  "pick_up": {
+                    "name": "pick_up",
+                    "description": "Adds the key to the player’s inventory",
+                    "function": "lambda self: self.update_state({\"is_held\": True, \"location\": \"inventory\"})"
+                  }
+                }
+              }
+            }
+        },
+        "town-hall": {
+            "short_description": "For all official matters"
+        },
+        "temple-in-cinthria": {
+            "short_description": "A sacred temple with ancient carvings on the walls."
+        },
+        "market-square": {
+            "short_description": "(not-implemented) A bustling market filled with merchants."
+        }
+      }
+    }
+  },
+  "defaultZone": "cinthria",
+  "defaultSubzone": "prison-vault"
+}

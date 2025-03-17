@@ -4,4 +4,3 @@ node_modules
 *_venv
 *__pycache*
 *users.json
-*zones.json

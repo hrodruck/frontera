@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import random
 from engine_game_object import EngineGameObject
@@ -6,67 +7,172 @@ from game_object import GameObject
 from commands.spk import handle_spk
 from commands.move import handle_move
 from commands.look import handle_look
+from commands.not_found import handle_command_not_found
 
 class Game:
     def __init__(self):
         self.game_ended = False
         self.game_progress_queue = ''
         self.progress_lock = asyncio.Lock()
-        self.game_objects = {}
-        self.engine_game_object = None
-        self.async_gameobject_init = None
+        self.game_objects = {}  # zone -> subzone -> object_name -> GameObject
+        self.engine_game_objects = {}  # zone -> subzone -> EngineGameObject
         self.active_players = set()
-        self.zones = self.load_zones()  # Load zones data
-        print("Engine is running. Use set_scene and start_game!")
+        self.zones = {}  # All zones data
+        self.player_locations = {}  # player_id -> {"zone": str, "subzone": str}
+        print("Engine is running. Use set_all_zones and start_game!")
 
-    def load_zones(self):
-        """Load zones.json from data/ directory."""
-        try:
-            with open('data/zones.json', 'r') as f:
-                return json.load(f)["zones"]
-        except Exception as e:
-            print(f"Error loading zones: {e}")
-            return {}
+    def set_all_zones(self, zones):
+        """Store all zones data."""
+        self.zones = zones
+        for zone in self.zones["zones"]:
+            for subzone in self.zones["zones"][zone]["subzones"]:
+                if zone not in self.game_objects:
+                    self.game_objects[zone] = {}
+                    self.engine_game_objects[zone] = {}
+                if subzone not in self.game_objects[zone]:
+                    self.game_objects[zone][subzone] = {}
 
-    async def process_input(self, p_in):
-        """Process commands from players, routing to specific handlers."""
-        if not p_in or not self.async_gameobject_init:
-            return
+    async def set_scene(self, scene_description, zone, subzone):
+        self.scene_objects_states = {}
+        self.scene_objects_tools = {}
+        for key, value in scene_description.items():
+            self.scene_objects_states[key] = value.get('initial_state')
+            self.scene_objects_tools[key] = value.get('tools')
 
-        if self.async_gameobject_init != 'Done':
-            await asyncio.gather(*self.async_gameobject_init)
-            self.async_gameobject_init = 'Done'
+    async def initialize_game_objects(self, zone, subzone):
+        """Initialize game objects for a specific zone and subzone."""
+        await self.add_to_progress_queue(f'<display_to_player> Filling {zone}/{subzone} with objects...\n</display_to_player>')
+        print(f'Filling {zone}/{subzone} with objects...')
+        game_object_template = (
+            'You simulate an object within a scene for a videogame. '
+            'Keep track of your own description, state, and tools, using common sense to answer questions or change your state. '
+            'Do not spontaneously add characteristics or tools without being provoked to do so. '
+            'Do not disappear after being used. '
+            'The object you simulate is a <object_name>. '
+            'Your initial state is <my_state>. '
+            'Your available tools are <my_tools>. '
+            'Important! Minimize changes when updating your state when possible. '
+            'When queried, use your state as context. When updating, only use your tools or propose new ones. '
+            'Only use your tools when clearly necessary.'
+            'Be extremely brief'
+        )
+        for key in self.scene_objects_states.keys():
+            self.game_objects[zone][subzone][key] = GameObject(
+                initial_state=copy.deepcopy(self.scene_objects_states[key]),
+                initial_tools=copy.deepcopy(self.scene_objects_tools[key])
+            )
+            self.game_objects[zone][subzone][key].object_name = key
+            applied_template = (
+                game_object_template
+                .replace('<object_name>', key)
+                .replace('<my_state>', json.dumps(self.scene_objects_states[key]))
+                .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[key].items()}))
+            )
+            self.game_objects[zone][subzone][key].set_system_message(applied_template)
+            await self.game_objects[zone][subzone][key].process_game_input(
+                f'This is your current state: "{json.dumps(self.scene_objects_states[key])}"'
+            )
 
-        # Handle new players
-        new_players = await self.login_new_players(p_in)
+    async def initialize_engine_simulator(self, zone, subzone):
+        """Initialize the engine for a specific zone and subzone."""
+        await self.add_to_progress_queue(f'<display_to_player>Initializing game engine for {zone}/{subzone}...\n</display_to_player>')
+        print(f'Initializing game engine for {zone}/{subzone}...')
+        game_engine_sys_prompt = (
+            'You are a text game engine simulator. Your task is to reply using common sense to the questions about the player\'s text input to the game. '
+            'I am the game designer. DO NOT add details or descriptions to any aspect of the game. '
+            'Creating extra details is extraneous and detracts from the game experience. Be brief and concise in all your statements. '
+            'You are called "game engine".'
+        )
+        game_state = await self.get_game_state(zone, subzone)
+        self.engine_game_objects[zone][subzone] = EngineGameObject()
+        self.engine_game_objects[zone][subzone].set_system_message(game_engine_sys_prompt)
+        await self.engine_game_objects[zone][subzone].process_game_input(f'This is the current game state: {str(game_state)}')
+        for k, v in self.game_objects[zone][subzone].items():
+            await self.engine_game_objects[zone][subzone].add_active_game_object(k, v)
+        self.engine_game_objects[zone][subzone].game_state = game_state
 
-        # Parse and route commands
-        p_in_random = list(p_in.items())
-        random.shuffle(p_in_random)
-        player_input_dict = {}
-        for new_player_id in new_players:
-            command = f"A new player with id {new_player_id} has logged into the game."
-            player_input_dict[new_player_id] = f"{command}. Login priority number: -1\n"
-        for random_index, (player_id, command) in enumerate(p_in_random):
+    async def start_game(self, zone, subzone):
+        """Start the game for a specific zone and subzone."""
+        await self.initialize_game_objects(zone, subzone)
+        await self.initialize_engine_simulator(zone, subzone)
+
+    async def process_player_commands(self, p_in):
+        tasks = []  # List for non-!spk tasks
+        spk_groups = {}  # Dictionary to group !spk inputs by (zone, subzone)
+
+        # Step 1: Categorize commands and ensure zones are initialized
+        for player_id, command in p_in.items():
+            zone = self.player_locations[player_id]["zone"]
+            subzone = self.player_locations[player_id]["subzone"]
+
             prefix, args = self.parse_command(command)
-            handler = {
-                "!spk": handle_spk,
-                "!move": handle_move,
-                "!look": handle_look
-            }.get(prefix, handle_spk)  # Default to spk for unrecognized commands
-            response = await handler(self, player_id, args)
-            player_input_dict[player_id] = f"This is the input of the player with id {player_id}: {response}. Priority number: {random_index}\n"
 
-        # Process through engine and yield responses
-        all_player_responses = await self.engine_game_object.process_player_input(player_input_dict)
-        await self.print_game_state_and_tools()
+            if prefix == "!spk":
+                # Group !spk inputs by (zone, subzone)
+                key = (zone, subzone)
+                if key not in spk_groups:
+                    spk_groups[key] = {}
+                spk_groups[key][player_id] = args  # Store args directly
+            else:
+                # Handle non-!spk commands (e.g., !move, !look) as parallel tasks
+                handler_map = {
+                    "!move": handle_move,
+                    "!look": handle_look
+                }
+                handler = handler_map.get(prefix, handle_command_not_found)
+                if handler:
+                    task = asyncio.create_task(handler(self, player_id, args, zone, subzone))
+                    tasks.append((player_id, task))
 
-        # Save tools dataset
-        async with aiofiles.open("data/tools_dataset.json", 'w') as f:
-            await f.write(json.dumps(GameObject.tools_dataset, indent=4))
+        # Step 2: Process !spk commands in parallel for each zone/subzone
+        spk_tasks = []
+        for (zone, subzone), player_input_dict in spk_groups.items():
+            task = asyncio.create_task(handle_spk(self, player_input_dict, zone, subzone))
+            spk_tasks.append(((zone, subzone), task))
 
-        for player_id, tailored_response in all_player_responses.items():
-            yield player_id, tailored_response
+        if spk_tasks:
+            spk_results = await asyncio.gather(*(task for _, task in spk_tasks))
+            # Yield results from each !spk task
+            for (_, _), result_dict in zip(spk_tasks, spk_results):
+                for player_id, response in result_dict.items():
+                    yield player_id, response
+
+        # Step 3: Process non-!spk commands in parallel
+        if tasks:
+            results = await asyncio.gather(*(task for _, task in tasks))
+            for (player_id, _), response in zip(tasks, results):
+                yield player_id, response   
+    
+    async def get_game_state(self, zone, subzone):
+        """Get the game state for a specific zone and subzone."""
+        await self.add_to_progress_queue(f'<display_to_player>Computing game state for {zone}/{subzone}...\n</display_to_player>')
+        print(f'Computing game state for {zone}/{subzone}...')
+        game_state = {k: json.dumps(v.state) for k, v in self.game_objects[zone][subzone].items()}
+        print (game_state)
+        return game_state
+
+    async def get_progress_queue(self):
+        """Yield progress updates."""
+        if not self.game_ended:
+            async with self.progress_lock:
+                if self.game_progress_queue:
+                    yield self.game_progress_queue
+                    self.game_progress_queue = ''
+                for zone in self.engine_game_objects:
+                    for subzone in self.engine_game_objects[zone]:
+                        async for item in self.engine_game_objects[zone][subzone].get_progress_queue():
+                            yield item
+                        for obj in self.game_objects[zone][subzone].values():
+                            async for item in obj.get_progress_queue():
+                                yield item
+            await asyncio.sleep(0.02)
+        else:
+            raise StopAsyncIteration
+
+    async def add_to_progress_queue(self, message):
+        """Add a message to the progress queue."""
+        async with self.progress_lock:
+            self.game_progress_queue += message
 
     def parse_command(self, command):
         """Parse command into prefix and arguments."""
@@ -75,154 +181,27 @@ class Game:
         args = parts[1] if len(parts) > 1 else ""
         return prefix, args
 
-    # Other methods (set_scene, start_game, etc.) remain unchanged for now
-    # Add get_game_state for handlers to use
-    async def get_game_state(self):
-        await self.add_to_progress_queue('<display_to_player>Computing game state...\n</display_to_player>')
-        game_state = {k: json.dumps(v.state) for k, v in self.game_objects.items()}
-        return game_state
-
-    async def get_progress_queue(self):
-        if not self.game_ended:
-            async with self.progress_lock:
-                if self.engine_game_object is not None:
-                    async for item in self.engine_game_object.get_progress_queue():
-                        self.game_progress_queue += item
-                        yield self.game_progress_queue
-                        self.game_progress_queue = ''
-                        await asyncio.sleep(0.02)
-                for k, v in self.game_objects.items():
-                    async for item in self.game_objects[k].get_progress_queue():
-                        self.game_progress_queue += item
-                        yield self.game_progress_queue
-                        self.game_progress_queue = ''
-                        await asyncio.sleep(0.02)
-        else:
-            raise StopAsyncIteration
-        
-    async def add_to_progress_queue(self, message):
-        async with self.progress_lock:
-            self.game_progress_queue += message
-
-    def set_scene(self, scene_description, winning_message=None, losing_message=None):
-        """
-        Set up the scene based on the provided description, handling both old and new formats.
-        """
-        if 'description' in scene_description:
-            # New format with nested 'description', 'winning_message', etc.
-            description_data = scene_description['description']
-            self.winning_message = scene_description.get('winning_message', winning_message)
-            self.losing_message = scene_description.get('losing_message', losing_message)
-        else:
-            # Legacy format where scene_description is directly the prompts
-            description_data = scene_description
-            self.winning_message = winning_message
-            self.losing_message = losing_message
-
-        # Extract prompts, states, and tools for each object
-        self.scene_objects_prompts = {}
-        self.scene_objects_states = {}
-        self.scene_objects_tools = {}
-
-        for key, value in description_data.items():
-            if isinstance(value, dict) and 'description' in value:
-                # New format: value is a dict with 'description', 'initial_state', 'tools'
-                self.scene_objects_prompts[key] = value['description']
-                self.scene_objects_states[key] = value.get('initial_state', {})
-                self.scene_objects_tools[key] = value.get('tools', {})
-            else:
-                # Legacy format: value is just a description string
-                self.scene_objects_prompts[key] = value
-                self.scene_objects_states[key] = {}
-                self.scene_objects_tools[key] = {}
-
-    async def initialize_game_objects(self):    
-        """
-        Initialize game objects with their descriptions, states, and tools.
-        """
-        await self.add_to_progress_queue('<display_to_player> Filling room with objects...\n</display_to_player>')        
-
-        # Updated game object template to include state and tools
-        game_object_template = (
-            'You simulate an object within a scene for a videogame. '
-            'Keep track of your own description, state, and tools, using common sense to answer questions or change your state. '
-            'Do not spontaneously add characteristics or tools without being provoked to do so. '
-            'Do not disappear after being used. '
-            'The object you simulate is a <object_name>. '
-            'Your initial description is "<my_description>". '
-            'Your initial state is <my_state>. '
-            'Your available tools are <my_tools>. '
-            'Important! Minimize changes when updating your state when possible. '
-            'When queried, use your state as context. When updating, only use your tools or propose new ones. '
-            'Only use your tools when clearly necessary.'
-            'Be extremely brief'
-        )
-
-        # Initialize all game objects first
-        for key in self.scene_objects_prompts.keys():
-            self.game_objects[key] = GameObject(
-                initial_state=copy.deepcopy(self.scene_objects_states[key]),
-                initial_tools=copy.deepcopy(self.scene_objects_tools[key])
-            )
-            self.game_objects[key].object_name = key
-
-        # Set system messages and initial states for all objects
-        tasks = []
-        for key in self.scene_objects_prompts.keys():
-            applied_template = (
-                game_object_template
-                .replace('<object_name>', key)
-                .replace('<my_description>', self.scene_objects_prompts[key])
-                .replace('<my_state>', json.dumps(self.scene_objects_states[key]))
-                .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[key].items()}))
-            )
-            self.game_objects[key].set_system_message(applied_template)
-            for tool_name, tool_data in self.scene_objects_tools[key].items():
-                self.game_objects[key].tools[tool_name]['function'] = tool_data['function']
-                    
-
-            # No need for designer assistant; state is already set
-            tasks.append(self.game_objects[key].process_game_input(
-                f'This is your current state: "{json.dumps(self.scene_objects_states[key])}"'
-            ))
-
-        await asyncio.gather(*tasks)
-
-    async def get_game_state(self):
-        await self.add_to_progress_queue('<display_to_player>Computing game state...\n</display_to_player>')
-        game_state = {k: json.dumps(v.state) for k, v in self.game_objects.items()}
-        return game_state
-        
-        '''
-        await self.add_to_progress_queue('<display_to_player>Computing game state...\n</display_to_player>')
-        tasks = []
-        summarization_prompt = 'What is your current state? Answer in first person: I...'
-        
-        for k, v in self.game_objects.items():
-            tasks.append(v.process_game_input(summarization_prompt, keep_history=True))
-        results = await asyncio.gather(*tasks)
-
-        game_state = {k: result for k, result in zip(self.game_objects.keys(), results)}
-        return game_state
-        '''
+    async def add_player(self, player_id, zone, subzone):
+        """Add a player to the game with an initial location."""
+        if player_id not in self.player_locations:
+            self.player_locations[player_id] = {"zone": zone, "subzone": subzone}
+            self.active_players.add(player_id)
+            await self.add_to_progress_queue(f'<display_to_player>Player {player_id} joined at {zone}/{subzone}.\n</display_to_player>')
+            print(f'Player {player_id} joined at {zone}/{subzone}.')
+            await self.initialize_player_objects(player_id)
     
-    import json
-
     async def initialize_player_objects(self, player_id):
-        """
-        Initialize player_body_{player_id} for a new player.
-        """
-        # Load template from JSON file
-        try:
-            with open('player_template.json', 'r') as f:
+        """Initialize player_body_{player_id} for a new player in their current zone/subzone."""
+        if player_id not in self.player_locations:
+            raise ValueError(f"Player {player_id} must be added to player_locations before initializing objects.")
+
+        # Get the player's current location
+        zone = self.player_locations[player_id]["zone"]
+        subzone = self.player_locations[player_id]["subzone"]
+
+        # Load template from JSON file or use fallback
+        with open('data/player_template.json', 'r') as f:
                 template_data = json.load(f)
-        except FileNotFoundError:
-            # Fallback template if file not found
-            template_data = {
-                "description": "A player avatar, full of physical characteristics. A regular, able adventurer.",
-                "initial_state": {"is_injured": False, "has_hands": True},
-                "initial_tools": {}
-            }
 
         # Define base prompt template
         player_body_template = (
@@ -239,14 +218,22 @@ class Game:
             'Be extremely brief'
         )
 
-        # Player body
+        # Player body key
         body_key = f"player_body_{player_id}"
-        if body_key not in self.game_objects:
-            self.game_objects[body_key] = GameObject(
+
+        # Ensure the zone/subzone exists in game_objects
+        if zone not in self.game_objects:
+            self.game_objects[zone] = {}
+        if subzone not in self.game_objects[zone]:
+            self.game_objects[zone][subzone] = {}
+
+        # Initialize the player body object if it doesn’t exist
+        if body_key not in self.game_objects[zone][subzone]:
+            self.game_objects[zone][subzone][body_key] = GameObject(
                 initial_state=template_data["initial_state"],
                 initial_tools=template_data["initial_tools"]
             )
-            self.game_objects[body_key].object_name = body_key
+            self.game_objects[zone][subzone][body_key].object_name = body_key
             body_prompt = (
                 player_body_template
                 .replace('<object_name>', body_key)
@@ -254,99 +241,40 @@ class Game:
                 .replace('<my_state>', json.dumps(template_data["initial_state"]))
                 .replace('<my_tools>', json.dumps(template_data["initial_tools"]))
             )
-            self.game_objects[body_key].set_system_message(body_prompt)
-            await self.game_objects[body_key].process_game_input(
+            self.game_objects[zone][subzone][body_key].set_system_message(body_prompt)
+            await self.game_objects[zone][subzone][body_key].process_game_input(
                 f'This is your current state: "{json.dumps(template_data["initial_state"])}"'
             )
-            await self.add_to_progress_queue(f'<display_to_player> Player {player_id} body initialized.\n</display_to_player>')
-            # Add to engine's active objects
-            if self.engine_game_object:
-                await self.engine_game_object.add_active_game_object(body_key, self.game_objects[body_key])
+            await self.add_to_progress_queue(f'<display_to_player> Player {player_id} body initialized in {zone}/{subzone}.\n</display_to_player>')
+            print(f'Player {player_id} body initialized in {zone}/{subzone}.')
 
-       
-        
-    async def initialize_engine_simulator(self):
-        await self.add_to_progress_queue('<display_to_player>Initializing game engine...\n</display_to_player>')
-        game_engine_sys_prompt = (
-            'You are a text game engine simulator. Your task is to reply using common sense to the questions about the player\'s text input to the game. '
-            'I am the game designer. DO NOT add details or descriptions to any aspect of the game. '
-            'Creating extra details is extraneous and detracts from the game experience. Be brief and concise in all your statements. '
-            'You are called "game engine".'
-        )
-        game_state = await self.get_game_state()
-        self.async_gameobject_init = []
-        for key in self.game_objects.keys():
-            self.async_gameobject_init.append(asyncio.create_task(
-                self.game_objects[key].process_game_input(f'This is the state of all objects: "{str(game_state)}"')
-            ))
-        
-        engine_initialization_prompt = ''
-        if hasattr(self, 'scene_objects_responsibilities') and self.scene_objects_responsibilities:
-            engine_initialization_prompt += f'This is every object in the room and their roles within the game: {str(self.scene_objects_responsibilities)}\n'
-        engine_initialization_prompt += f'This is the current game state: {str(game_state)}'
-        self.engine_game_object = EngineGameObject()
-        self.engine_game_object.set_system_message(game_engine_sys_prompt)
-        self.engine_game_object.winning_message = self.winning_message
-        self.engine_game_object.losing_message = self.losing_message
-        await self.engine_game_object.process_game_input(engine_initialization_prompt)
-        for k, v in self.game_objects.items():
-            await self.engine_game_object.add_active_game_object(k, v)
-        self.engine_game_object.game_state = game_state
-        self.engine_game_object.object_name = 'game_engine'
-        self.engine_game_object.roles_string = ''
+            # Add to the zone/subzone engine’s active objects
+            if zone in self.engine_game_objects and subzone in self.engine_game_objects[zone]:
+                await self.engine_game_objects[zone][subzone].add_active_game_object(
+                    body_key, self.game_objects[zone][subzone][body_key]
+                )
 
-            
-    async def login_new_players(self, p_in):
-        """Handle initialization and login of new players"""
-        if not p_in:
-            return
-        
-        # Check for new players and initialize their objects
-        new_players = set(p_in.keys()) - self.active_players
-        for player_id in new_players:
-            if player_id.lower() == 'gamemaster':
-                continue
-            await self.initialize_player_objects(player_id)
-            self.active_players.add(player_id)
-            # Update engine game state after adding new player objects
-            if self.engine_game_object:
-                self.engine_game_object.game_state = await self.get_game_state()
-        return new_players
-    
-    async def start_game(self):
-        await self.initialize_game_objects()
-        await self.initialize_engine_simulator()
-        
     async def print_game_state_and_tools(self):
-        """
-        Print the current state dictionaries and tool datasets for all game objects,
-        as well as the global tools dataset from GameObject.
-        """
+        """Print the current state dictionaries and tool datasets for all game objects."""
         await self.add_to_progress_queue('<display_to_player>Printing game state and tools...\n</display_to_player>')
+        print('Printing game state and tools...')
 
-        # Collect state and tools information
         output = "\n=== Game State and Tools ===\n"
-
-        # Global tools dataset from GameObject class
         output += "Global Tools Dataset (GameObject.tools_dataset):\n"
         global_tools = {k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} 
                        for k, v in GameObject.tools_dataset.items()}
         output += json.dumps(global_tools, indent=2) + "\n\n"
 
-        # Per-object state and tools
-        for key, obj in self.game_objects.items():
-            output += f"Object: {key}\n"
-            
-            # State dictionary
-            output += "  State:\n"
-            output += f"    {json.dumps(obj.state, indent=2)}\n"
-            
-            # Object-specific tools dataset (excluding function for readability)
-            output += "  Tools:\n"
-            tools_without_func = {k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} 
-                                 for k, v in obj.tools.items()}
-            output += f"    {json.dumps(tools_without_func, indent=2)}\n\n"
+        for zone in self.game_objects:
+            for subzone in self.game_objects[zone]:
+                for key, obj in self.game_objects[zone][subzone].items():
+                    output += f"Object: {key} (in {zone}/{subzone})\n"
+                    output += "  State:\n"
+                    output += f"    {json.dumps(obj.state, indent=2)}\n"
+                    output += "  Tools:\n"
+                    tools_without_func = {k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} 
+                                         for k, v in obj.tools.items()}
+                    output += f"    {json.dumps(tools_without_func, indent=2)}\n\n"
 
-        # Add to progress queue and print to console
         await self.add_to_progress_queue(output)
         print(output)

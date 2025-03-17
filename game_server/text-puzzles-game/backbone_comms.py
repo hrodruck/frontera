@@ -55,7 +55,7 @@ class BackboneComms():
         except json.JSONDecodeError as e:
             print(f"Failed to parse JSON: {json_text}")
             print(f"Error: {e}")
-            raise e
+            return ""
         return answer
 
     async def chat_together_backbone(self, history, json=False):
