@@ -5,16 +5,10 @@
         "function": "lambda self: self.update_state({\"durability\": 0, \"is_broken\": True})",
         "reviewed": true
     },
-    "observe": {
-        "name": "observe",
-        "description": "Updates surroundings by merging new data into the existing dictionary",
-        "function": "lambda self, data: self.update_state({\"surroundings\": {**self.state.get(\"surroundings\", {}), **data}}) if isinstance(data, dict) else {'success': False, 'message': 'Data must be a dictionary'}",
-        "reviewed": true
-    },
-    "pick_up": {
-        "name": "pick_up",
-        "description": "Adds an item to the player's inventory",
-        "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]})",
+    "allow_subzone": {
+        "name": "allow move to subzone or zone",
+        "description": "Adds subzone or zone to list of allowed_moves",
+        "function": "lambda self, subzone: self.update_state({\"allowed_moves\": (self.state.get(\"allowed_moves\", []) + [subzone]) if subzone not in self.state.get(\"allowed_moves\", []) and subzone in self.state.get(\"existing_places\", []) else self.state.get(\"allowed_moves\", [])})",
         "reviewed": true
     },
     "hold": {

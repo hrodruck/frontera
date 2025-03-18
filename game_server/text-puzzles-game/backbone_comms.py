@@ -7,6 +7,9 @@ from ollama import AsyncClient
 from openai import AsyncOpenAI
 from together import AsyncTogether
     
+    
+
+    
 class BackboneComms():    
     
     def __init__(self):
@@ -62,7 +65,6 @@ class BackboneComms():
         client = AsyncTogether(
             api_key=os.getenv('TOGETHER_KEY'),
         )
-        
         if json:
             chat_completion = await client.chat.completions.create(
                 model=self.model_string,
@@ -80,36 +82,53 @@ class BackboneComms():
         print('.')
         return content
     
-    async def chat_openai_backbone(self, history, json=False):
+    async def chat_openai_backbone(self, history, expect_json=False, expect_tools=False):
         openai = AsyncOpenAI(
             api_key=os.getenv('OPEN_API_KEY'),
             base_url=os.getenv('OPEN_API_URL'),
         )
-        
-        
-        if json:
+        #expect_tools is ignored for now
+        '''
+        expect_tools:
             chat_completion = await openai.chat.completions.create(
                 model=self.model_string,
                 messages=history,
-                response_format={"type": "json"},
+                response_format={"type": "json_object"},
+                tools=[{
+                    "type": "function",
+                    "function": {
+                        "name": "Tools",
+                        "description": "Tools to be used on the gameobjects",
+                        "parameters": ToolList.model_json_schema(),
+                    }
+                }],
+                tool_choice='auto'
+            )
+            content = chat_completion.choices[0].message.content
+        '''
+        if expect_json:
+            chat_completion = await openai.chat.completions.create(
+                model=self.model_string,
+                messages=history,
+                response_format={"type": "json_object"},
                 presence_penalty=self.presence_penalty_json
             )
+            content = chat_completion.choices[0].message.content
         else:
             chat_completion = await openai.chat.completions.create(
                 model=self.model_string,
                 messages=history,
                 presence_penalty=self.presence_penalty
             )
-        
-        content = chat_completion.choices[0].message.content
+            content = chat_completion.choices[0].message.content
         print(content)
         print('.')
         return content #this can be changed if necessary to yield chunks of stream, not done currently bc API is fast enough and this change is not priority
 
-    async def chat_ollama_backbone(self, history, json=False):
+    async def chat_ollama_backbone(self, history, expect_json=False):
         client = AsyncClient()
         full_response = ""
-        if not json:
+        if not expect_json:
             async for part in await client.chat(model='gemma2:27b', messages=history, stream=True):
                 content = part['message']['content']
                 print(content, end='', flush=True)
@@ -122,18 +141,18 @@ class BackboneComms():
         print('.')  # Add a separator after the response
         return full_response #this can be changed if necessary to yield chunks of stream, not done currently to align with openai backbone
     
-    async def _chat_inner(self, history, json=False):
+    async def _chat_inner(self, history, expect_json=False, expect_tools=False):
         if self.openai_backbone:
-            response = await self.chat_openai_backbone(history, json)
+            response = await self.chat_openai_backbone(history, expect_json, expect_tools)
         elif self.together_ai_backbone:
-            response = await self.chat_together_backbone(history, json)
+            response = await self.chat_together_backbone(history, expect_json, expect_tools)
         else:
-            response = await self.chat_ollama_backbone(history, json)
+            response = await self.chat_ollama_backbone(history, expect_json)
         #async with self.progress_lock:
         self._comms_queue += f"\n{response}"
         return response
 
-    async def chat_outer(self, user_message, user_history=[], json=False, keep_history=True, lock_history=True):
+    async def chat_outer(self, user_message, user_history=[], expect_json=False, keep_history=True, lock_history=True, expect_tools=False):
         #the first message should be the system prompt
         assert(user_history[0]['role']=='system')
         assert(len(user_history)>0) # system prompt must be set
@@ -144,7 +163,7 @@ class BackboneComms():
                 user_history.append(
                     {'role': 'user', 'content':user_message}
                 )
-                response = await self._chat_inner(user_history, json)
+                response = await self._chat_inner(user_history, expect_json, expect_tools=expect_tools)
                 user_history.append({'role': 'assistant', 'content': response})
         else:
             history_len = len(user_history)
@@ -155,6 +174,6 @@ class BackboneComms():
             temp_history.append(
                 {'role': 'user', 'content':user_message}
             )
-            response = await self._chat_inner(temp_history, json)
+            response = await self._chat_inner(temp_history, expect_json, expect_tools=expect_tools)
             assert(len(user_history) == history_len)
         return response

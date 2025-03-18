@@ -58,18 +58,21 @@ class GameObject:
                 self.progress_queue = ''
         await asyncio.sleep(0.02)
 
-    async def chat_with_backbone(self, user_message, user_history=[], expect_json=False, keep_history=True, lock_history=True):
-        return await self.comms_backbone.chat_outer(user_message, user_history, expect_json, keep_history, lock_history)
+    async def chat_with_backbone(self, user_message, user_history=[], expect_json=False, keep_history=True, lock_history=True, expect_tools=False):
+        return await self.comms_backbone.chat_outer(user_message, user_history, expect_json, keep_history, lock_history, expect_tools)
 
     async def add_to_progress_queue(self, message):
         async with self.progress_lock:
             self.progress_queue += message
 
-    def update_state(self, updates):
+    async def update_state(self, updates):
+        if updates is None:
+            return self.state
         """Helper method to safely update the state dictionary."""
         print (f'\n== called update_state==')
         print (f'{updates=}\n')
-        self.state.update(updates)
+        async with self.processing_lock:
+            self.state.update(updates)
         return self.state
 
     async def get_reviewed_tools(self):

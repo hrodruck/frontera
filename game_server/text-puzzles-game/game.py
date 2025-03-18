@@ -97,6 +97,8 @@ class Game:
         await self.initialize_engine_simulator(zone, subzone)
 
     async def process_player_commands(self, p_in):
+        if not p_in:
+            return 
         tasks = []  # List for non-!spk tasks
         spk_groups = {}  # Dictionary to group !spk inputs by (zone, subzone)
 
@@ -135,13 +137,23 @@ class Game:
             # Yield results from each !spk task
             for (_, _), result_dict in zip(spk_tasks, spk_results):
                 for player_id, response in result_dict.items():
+                    zone = self.player_locations[player_id]["zone"]
+                    subzone = self.player_locations[player_id]["subzone"]
+                    body_key = f"player_body_{player_id}"
+                    new_zone = self.game_objects[zone][subzone][body_key].state["zone"]
+                    if new_zone != zone:
+                        await handle_move(self, player_id, new_zone, zone, subzone)
+                    new_subzone = self.game_objects[zone][subzone][body_key].state["subzone"]
+                    if new_subzone != subzone:
+                        await handle_move(self, player_id, new_subzone, zone, subzone)
                     yield player_id, response
 
         # Step 3: Process non-!spk commands in parallel
         if tasks:
             results = await asyncio.gather(*(task for _, task in tasks))
             for (player_id, _), response in zip(tasks, results):
-                yield player_id, response   
+                yield player_id, response
+        await self.print_game_state_and_tools()
     
     async def get_game_state(self, zone, subzone):
         """Get the game state for a specific zone and subzone."""
@@ -237,7 +249,7 @@ class Game:
             body_prompt = (
                 player_body_template
                 .replace('<object_name>', body_key)
-                .replace('<my_description>', template_data["description"])
+                .replace('<my_description>', template_data["human_readable_description"])
                 .replace('<my_state>', json.dumps(template_data["initial_state"]))
                 .replace('<my_tools>', json.dumps(template_data["initial_tools"]))
             )
