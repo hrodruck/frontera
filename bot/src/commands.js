@@ -46,7 +46,8 @@ async function handleMessage(message, client) {
       } else if (command === 'spk') {
         await handleSpk(message, args);
       } else {
-        await message.reply("Unknown command! Try !spk, !move, or !look.");
+        await message.reply("Unknown command! Supposing spk...");
+        await handleSpk(message, args);
       }
     }
   } catch (error) {

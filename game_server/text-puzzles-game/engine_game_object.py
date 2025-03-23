@@ -235,8 +235,6 @@ class EngineGameObject(GameObject):
             
             self.round_counter += 1
             
-            for k, v in final_responses.items():
-                final_responses[k] = f"This is round number {self.round_counter}.\n{v}"
             
             return final_responses
 
