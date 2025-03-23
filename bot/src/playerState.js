@@ -57,7 +57,7 @@ function startPolling(userId, thread) {
         pollingStates.delete(userId);
         return;
       }
-      if (Date.now() - lastActivity > 3 * 60 * 1000) { // 3-minute AFK timer
+      if (Date.now() - lastActivity > 10 * 60 * 1000) { // 10-minute AFK timer
         clearInterval(interval);
         pollingStates.delete(userId);
         await thread.send("Polling stopped due to inactivity.");

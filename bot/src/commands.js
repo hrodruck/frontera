@@ -40,7 +40,7 @@ async function handleMessage(message, client) {
 
       // Delegate commands to their respective handlers
       if (command === 'look') {
-        await handleLook(message);
+        await handleLook(message, args);
       } else if (command === 'move') {
         await handleMove(message, args);
       } else if (command === 'spk') {

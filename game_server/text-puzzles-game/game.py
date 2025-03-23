@@ -18,10 +18,12 @@ class Game:
         self.engine_game_objects = {}  # zone -> subzone -> EngineGameObject
         self.active_players = set()
         self.zones = {}  # All zones data
+        self.scene_objects_states = {} # Initial state loaded from data for every object
+        self.scene_objects_tools = {} # Initial tools loaded from data for every object
         self.player_locations = {}  # player_id -> {"zone": str, "subzone": str}
         print("Engine is running. Use set_all_zones and start_game!")
 
-    def set_all_zones(self, zones):
+    async def set_all_zones(self, zones):
         """Store all zones data."""
         self.zones = zones
         for zone in self.zones["zones"]:
@@ -29,15 +31,30 @@ class Game:
                 if zone not in self.game_objects:
                     self.game_objects[zone] = {}
                     self.engine_game_objects[zone] = {}
+                    self.scene_objects_states[zone]={}
+                    self.scene_objects_tools[zone]={}
                 if subzone not in self.game_objects[zone]:
                     self.game_objects[zone][subzone] = {}
+                    self.engine_game_objects[zone][subzone] = {}
+                    self.scene_objects_states[zone][subzone]={}
+                    self.scene_objects_tools[zone][subzone]={}
+                    
+                subzone_data = self.zones["zones"][zone]["subzones"][subzone]
+                print (f'loading subzone data for subzone {subzone} in zone {zone}')
+                scene_description = subzone_data.get("objects", {})
+                if scene_description:
+                    await self.set_scene_one_subzone(
+                        scene_description=scene_description,
+                        zone=zone,
+                        subzone=subzone,
+                    )
+                else:
+                    print (f'could not find objects in subzone {subzone}!')
 
-    async def set_scene(self, scene_description, zone, subzone):
-        self.scene_objects_states = {}
-        self.scene_objects_tools = {}
+    async def set_scene_one_subzone(self, scene_description, zone, subzone):
         for key, value in scene_description.items():
-            self.scene_objects_states[key] = value.get('initial_state')
-            self.scene_objects_tools[key] = value.get('tools')
+            self.scene_objects_states[zone][subzone][key] = value.get('initial_state')
+            self.scene_objects_tools[zone][subzone][key] = value.get('tools')
 
     async def initialize_game_objects(self, zone, subzone):
         """Initialize game objects for a specific zone and subzone."""
@@ -56,22 +73,26 @@ class Game:
             'Only use your tools when clearly necessary.'
             'Be extremely brief'
         )
-        for key in self.scene_objects_states.keys():
+        for key in self.scene_objects_states[zone][subzone].keys():
             self.game_objects[zone][subzone][key] = GameObject(
-                initial_state=copy.deepcopy(self.scene_objects_states[key]),
-                initial_tools=copy.deepcopy(self.scene_objects_tools[key])
+                initial_state=copy.deepcopy(self.scene_objects_states[zone][subzone][key]),
+                initial_tools=copy.deepcopy(self.scene_objects_tools[zone][subzone][key])
             )
             self.game_objects[zone][subzone][key].object_name = key
             applied_template = (
                 game_object_template
                 .replace('<object_name>', key)
-                .replace('<my_state>', json.dumps(self.scene_objects_states[key]))
-                .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[key].items()}))
+                .replace('<my_state>', json.dumps(self.scene_objects_states[zone][subzone][key]))
+                .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[zone][subzone][key].items()}))
             )
             self.game_objects[zone][subzone][key].set_system_message(applied_template)
+            
+            '''
             await self.game_objects[zone][subzone][key].process_game_input(
-                f'This is your current state: "{json.dumps(self.scene_objects_states[key])}"'
+                f'This is your current state: "{json.dumps(self.scene_objects_states[zone][subzone][key])}"'
             )
+            '''
+            
 
     async def initialize_engine_simulator(self, zone, subzone):
         """Initialize the engine for a specific zone and subzone."""
@@ -86,15 +107,17 @@ class Game:
         game_state = await self.get_game_state(zone, subzone)
         self.engine_game_objects[zone][subzone] = EngineGameObject()
         self.engine_game_objects[zone][subzone].set_system_message(game_engine_sys_prompt)
-        await self.engine_game_objects[zone][subzone].process_game_input(f'This is the current game state: {str(game_state)}')
+        await self.engine_game_objects[zone][subzone].process_game_input(f'This is the current state of the objects within you: {json.dumps(game_state)}')
         for k, v in self.game_objects[zone][subzone].items():
             await self.engine_game_objects[zone][subzone].add_active_game_object(k, v)
         self.engine_game_objects[zone][subzone].game_state = game_state
 
     async def start_game(self, zone, subzone):
-        """Start the game for a specific zone and subzone."""
-        await self.initialize_game_objects(zone, subzone)
-        await self.initialize_engine_simulator(zone, subzone)
+        """Start the game"""
+        for zone, v in self.engine_game_objects.items():
+            for subzone, engineobject in v.items():
+                await self.initialize_game_objects(zone, subzone)
+                await self.initialize_engine_simulator(zone, subzone)
 
     async def process_player_commands(self, p_in):
         if not p_in:
@@ -108,7 +131,6 @@ class Game:
             subzone = self.player_locations[player_id]["subzone"]
 
             prefix, args = self.parse_command(command)
-
             if prefix == "!spk":
                 # Group !spk inputs by (zone, subzone)
                 key = (zone, subzone)
@@ -164,6 +186,8 @@ class Game:
         return game_state
 
     async def get_progress_queue(self):
+        '''Deprecated until we figure out how to do this per subzone'''
+        raise StopAsyncIteration
         """Yield progress updates."""
         if not self.game_ended:
             async with self.progress_lock:
@@ -254,9 +278,11 @@ class Game:
                 .replace('<my_tools>', json.dumps(template_data["initial_tools"]))
             )
             self.game_objects[zone][subzone][body_key].set_system_message(body_prompt)
+            '''
             await self.game_objects[zone][subzone][body_key].process_game_input(
                 f'This is your current state: "{json.dumps(template_data["initial_state"])}"'
             )
+            '''
             await self.add_to_progress_queue(f'<display_to_player> Player {player_id} body initialized in {zone}/{subzone}.\n</display_to_player>')
             print(f'Player {player_id} body initialized in {zone}/{subzone}.')
 

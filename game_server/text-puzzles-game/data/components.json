@@ -1,0 +1,71 @@
+{
+    "breakable": {
+        "states": {
+            "durability": 100,
+            "is_broken":false
+        },
+        "tools":[{
+            "name": "break",
+            "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
+            "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
+            "reviewed": true
+        }],
+        "implied_components":[]
+    },
+    "mobile": {
+        "states":{
+            "location_within_subzone": "nowhere in particular"
+        },
+        "tools":[{
+            "name": "move_within_subzone",
+            "human_readable_description": "Moves the gamobject within the subzone",
+            "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
+            "reviewed": true
+        }],
+        "implied_components":[]
+    },
+    "graspable": {
+        "states":{
+            "owner": "none",
+            "grabbed": false
+        },
+        "tools":[
+            {
+                "name": "transfer",
+                "human_readable_description": "Changes this gameobject from one inventory to another",
+                "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn’t owned by anyone yet—nothing to transfer!'",
+                "reviewed": true
+            },
+            {
+                "name": "drop",
+                "human_readable_description": "Let go of this object",
+                "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
+                "reviewed": true
+            },
+            {
+                "name": "be_grabbed",
+                "human_readable_description": "Reflects that this item was picked up by a player",
+                "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
+                "reviewed": true
+            }
+        ],
+        "implied_components":["mobile"]
+    },
+    "dialogue": {
+        "states": {
+            "current_topic": "topic_001",
+            "can_talk": true,
+            "topics": {
+                "topic_001": "Exchange pleasantries, nothing else"
+            }
+        },
+        "tools":[
+            {        
+                "name": "talk",
+                "human_readable_description": "Discuss about the current_topic",
+                "function": "lambda self, player: If self.state['can_talk'] is True, generate and return a dialogue string based on the description in self.state['topics'][self.state['current_topic']], flavored to suit the object’s personality and situation. If self.state['can_talk'] is False, return a short message like 'It’s not in the mood to chat' or something fitting the object’s current state and context."
+            }
+        ],
+        "implied_components":[]
+    }
+}

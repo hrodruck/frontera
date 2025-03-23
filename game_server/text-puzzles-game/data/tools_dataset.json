@@ -1,38 +1,3 @@
 {
-    "break": {
-        "name": "break",
-        "description": "Reduces durability to 0 and marks object as broken",
-        "function": "lambda self: self.update_state({\"durability\": 0, \"is_broken\": True})",
-        "reviewed": true
-    },
-    "allow_subzone": {
-        "name": "allow move to subzone or zone",
-        "description": "Adds subzone or zone to list of allowed_moves",
-        "function": "lambda self, subzone: self.update_state({\"allowed_moves\": (self.state.get(\"allowed_moves\", []) + [subzone]) if subzone not in self.state.get(\"allowed_moves\", []) and subzone in self.state.get(\"existing_places\", []) else self.state.get(\"allowed_moves\", [])})",
-        "reviewed": true
-    },
-    "hold": {
-        "name": "hold",
-        "description": "Marks an item from inventory as being held",
-        "function": "lambda self, item: self.update_state({\"held_item\": item}) if 'inventory' in self.state and item in self.state['inventory'] else {'success': False, 'message': 'Item not in inventory'}",
-        "reviewed": true
-    },
-    "release": {
-        "name": "release",
-        "description": "Stops holding an item, optionally removing it from inventory",
-        "function": "lambda self, item, remove_from_inventory=False: self.update_state({\"held_item\": None, \"inventory\": [i for i in self.state['inventory'] if i != item] if remove_from_inventory else self.state['inventory']}) if 'held_item' in self.state and self.state['held_item'] == item else {'success': False, 'message': 'Item not held'}",
-        "reviewed": true
-    },
-    "consume_fuel": {
-        "name": "consume_fuel",
-        "description": "Reduces fuel level, deactivates object if depleted",
-        "function": "lambda self, amount: self.update_state({\"fuel\": self.state['fuel'] - amount}) if 'fuel' in self.state and self.state['fuel'] > amount else self.update_state({\"fuel\": 0, \"is_active\": False}) if 'fuel' in self.state else {'success': False, 'message': 'Fuel not found'}",
-        "reviewed": true
-    },
-    "consume_health": {
-        "name": "consume_health",
-        "description": "Reduces health level, marks player as dead if depleted",
-        "function": "lambda self, amount: self.update_state({\"health\": self.state['health'] - amount}) if 'health' in self.state and self.state['health'] > amount else self.update_state({\"health\": 0, \"is_alive\": False}) if 'health' in self.state else {'success': False, 'message': 'Health not found'}",
-        "reviewed": true
-    }
+    
 }

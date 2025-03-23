@@ -30,7 +30,7 @@ async function handleExplore(message, client) {
     }
 
     const userData = data.users[user.id];
-    await startGame(SESSION_ID, user.id, {}); // No room data needed
+    await startGame(`${SESSION_ID}`, user.id, {}); // No room data needed
 
     const zoneChannel = message.guild.channels.cache.find(ch => ch.name === 'frontera' && ch.type === 0)
       || await message.guild.channels.create({ name: 'frontera', type: 0, parent: message.guild.channels.cache.find(ch => ch.name === 'Frontera' && ch.type === 4) });

@@ -2,6 +2,7 @@
     "human_readable_description": "A player avatar, full of physical characteristics. A regular, able adventurer.",
     "initial_state": {
         "is_injured": false,
+        "gold": 10,
         "zone": "cinthria",
         "subzone": "prison-vault",
         "allowed_moves": ["prison-vault"],
@@ -31,6 +32,12 @@
             "name": "pick_up",
             "description": "Adds an item to the player's inventory",
             "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]})",
+            "reviewed": true
+        },
+        "pay": {
+            "name": "pay",
+            "description": "Reduces gold in exchange of some service or product",
+            "function": "lambda self, amount=0.1: self.update_state({\"gold\": self.state.get(\"gold\" - amount)})",
             "reviewed": true
         }
     }

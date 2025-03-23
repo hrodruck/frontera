@@ -1,0 +1,99 @@
+{
+  "zones": {
+    "cinthria": {
+      "description": "Welcome to the town of Cinthria!",
+      "subzones": {
+        "prison-vault": {
+            "short_description": "An unwelcoming place",
+            "long_description": "This is a place to store prisoners in the city of Cinthria. You have no idea why you're here. Maybe there's a way to get out...",
+            "objects": {
+              "door": {
+                "initial_state": {
+                  "durability": 100,
+                  "is_locked": true,
+                  "is_broken": false,
+                  "exit_leads_to": "town-hall",
+                  "human_readable_description": "A large, old wooden door with an inconspicuous keyhole."
+                },
+                "tools": {
+                  "unlock": {
+                    "name": "unlock",
+                    "human_readable_description": "Unlocks the door if a key is used",
+                    "function": "update is_locked to false if one of the params is key_001"
+                  },
+                  "pass_through": {
+                    "name": "pass_through",
+                    "human_readable_description": "Adds subzone or zone to list of allowed_moves for anyone who opens the door",
+                    "function": "lambda self, target: target.update_state({\"allowed_moves\": (self.state.get(\"exit_leads_to\"))}) if (self.state.get(\"exit_leads_to\")) in target.state.get(\"existing_places\", []) else 'It seems that place does not exist'",
+                    "reviewed": true
+                  }
+                }
+              },
+              "doormat": {
+                "initial_state": {
+                  "is_flammable": true,
+                  "is_burned": false,
+                  "key_hidden_under": true,
+                  "location_within_subzone": "Next to the door",
+                  "human_readable_description": "A flammable doormat"
+                },
+                "tools": {
+                  "burn": {
+                    "name": "burn",
+                    "human_readable_description": "Sets the doormat on fire",
+                    "function": "lambda self: self.update_state({\"is_burned\": True, \"key_hidden_under\": False}) if directly exposed to a flame else None. If the doormat is exposed to flame, also change the human_readable_description to match a pile of ash"
+                  }
+                }
+              },
+              "torch": {
+                "initial_state": {
+                  "is_lit": true,
+                  "location_within_subzone": "mounted on wall",
+                  "owner": "no one",
+                  "fuel_level": 100,
+                  "human_readable_description": "A torch, burning brightly"
+                },
+                "tools": {
+                  "snuff": {
+                    "name": "snuff",
+                    "human_readable_description": "Puts out the torch",
+                    "function": "lambda self: self.update_state({\"is_lit\": False})"
+                  },
+                  "consume_fuel": {
+                    "name": "consume_fuel",
+                    "human_readable_description": "Reduces fuel level, deactivates object if depleted",
+                    "function": "lambda self, amount: self.update_state({\"fuel_level\": self.state['fuel_level'] - amount}) if 'fuel_level' in self.state and self.state['fuel_level'] > amount else self.update_state({\"fuel_level\": 0, \"is_lit\": False}) if 'fuel_level' in self.state else {'success': False, 'message': 'Fuel level not found'}"
+                  }
+                }
+              },
+              "key_001": {
+                "initial_state": {
+                  "is_hidden": true,
+                  "location_within_subzone": "under_doormat",
+                  "human_readable_description": "This is key_001."
+                },
+                "tools": {
+                  "reveal": {
+                    "name": "reveal",
+                    "human_readable_description": "Makes the key visible and available",
+                    "function": "lambda self: self.update_state({\"is_hidden\": False})"
+                  }
+                }
+              }
+            }
+        },
+        "town-hall": {
+            "short_human_readable_description": "For all official matters"
+        },
+        "temple-in-cinthria": {
+            "short_human_readable_description": "A sacred temple with ancient carvings on the walls."
+        },
+        "market-square": {
+            "short_human_readable_description": "(not-implemented) A bustling market filled with merchants."
+        }
+      }
+    }
+  },
+  "defaultZone": "cinthria",
+  "defaultSubzone": "prison-vault"
+}

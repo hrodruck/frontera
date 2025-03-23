@@ -1,7 +1,7 @@
 const { processInput } = require('../serverConnection');
 const { isPlayerLoggedIn, updateLastActivity } = require('../playerState');
 
-async function handleLook(message) {
+async function handleLook(message, args) {
   const userId = message.author.id;
   if (!isPlayerLoggedIn(userId)) {
     await message.reply("You need to log in with !explore first!");
@@ -9,8 +9,9 @@ async function handleLook(message) {
   }
 
   try {
+    const playerInput = args.join(' ');
     const command = "!look";
-    const response = await processInput(process.env.SESSION_ID, userId, command);
+    const response = await processInput(process.env.SESSION_ID, userId, `${command} ${playerInput}`);
     await message.reply(response || "No response from the game.");
     updateLastActivity(userId, message.channel); // Reset AFK timer
   } catch (error) {

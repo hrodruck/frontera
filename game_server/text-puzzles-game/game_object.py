@@ -22,7 +22,7 @@ class GameObject:
                     for tool_name, tool_data in loaded_tools.items():
                         cls.tools_dataset[tool_name] = {
                             "name": tool_data["name"],
-                            "description": tool_data["description"],
+                            "human_readable_description": tool_data["human_readable_description"],
                             "function": tool_data["function"],
                             "reviewed": tool_data["reviewed"]
                         }
@@ -72,9 +72,13 @@ class GameObject:
         print (f'\n== called update_state==')
         print (f'{updates=}\n')
         async with self.processing_lock:
-            self.state.update(updates)
+            try:
+                self.state.update(updates)
+            except Exception as e:
+                print(e)
         return self.state
-
+    
+    
     async def get_reviewed_tools(self):
         approved_tools = {k:v for k, v in GameObject.tools_dataset.items() if v["reviewed"]==True}
         return json.dumps(approved_tools)
@@ -111,7 +115,7 @@ class GameObject:
                     f"To decide if fetch_tool is adequate, consider also the 'function' of that tool and interpret its behavior"
                     f"If proposing a tool, the 'new_tool' object must include: "
                     f"- 'name': the tool's name (string), "
-                    f"- 'description': what the tool does (string), "
+                    f"- 'human_readable_description': what the tool does (string), "
                     f"- 'function': a lambda expression as a string (e.g., 'lambda self: self.update_state({{...}})') defining the tool’s behavior, "
                     f"- 'reviewed': a boolean (set to False), "
                     f"- 'params': an optional dictionary of parameters (e.g., {{'item': 'key'}}) if the lambda function requires arguments beyond 'self'. "
@@ -119,9 +123,9 @@ class GameObject:
                     f"Ensure the lambda function is valid Python syntax with no extra braces. Example: 'lambda self: self.update_state({{\"is_injured\": True}})'."
                     f"If the lambda function requires parameters beyond 'self', include them in the 'params' property of the 'new_tool' object for immediate execution. "
                     f"Example of a tool with parameters: "
-                    f"'remove_item': {{'name': 'remove_item', 'description': 'Removes a specific item from contents', 'function': 'lambda self, item: self.update_state({{\"contents\": [i for i in self.state[\"contents\"] if i != item]}}) if \"contents\" in self.state else None', 'reviewed': False, 'params': {{'item': 'key'}}}}. "
+                    f"'remove_item': {{'name': 'remove_item', 'human_readable_description': 'Removes a specific item from contents', 'function': 'lambda self, item: self.update_state({{\"contents\": [i for i in self.state[\"contents\"] if i != item]}}) if \"contents\" in self.state else None', 'reviewed': False, 'params': {{'item': 'key'}}}}. "
                     f"Example of a tool without parameters: "
-                    f"'unlock': {{'name': 'unlock', 'description': 'Unlocks the object if locked', 'function': 'lambda self: self.update_state({{\"is_locked\": False}}) if \"is_locked\" in self.state else None', 'reviewed': False}}. "
+                    f"'unlock': {{'name': 'unlock', 'human_readable_description': 'Unlocks the object if locked', 'function': 'lambda self: self.update_state({{\"is_locked\": False}}) if \"is_locked\" in self.state else None', 'reviewed': False}}. "
                     f"Ensure the proposed tool’s function and parameters (if any) are relevant to the instruction '{update}' and the current state."
                     f"Your order or preference should be use_tool, no_act, fetch_tool and, finally, propose_tool."
                 )
@@ -207,7 +211,7 @@ class GameObject:
                 local_tool = new_tool.copy()
                 local_tool["reviewed"] = True
                 self.tools[new_tool["name"]] = local_tool
-                return f"{self.object_name} proposed and used new tool '{new_tool['name']}': {new_tool['description']}. New state: {json.dumps(self.state)}"
+                return f"{self.object_name} proposed and used new tool '{new_tool['name']}': {new_tool['human_readable_description']}. New state: {json.dumps(self.state)}"
             except Exception as e:
                 return f"{self.object_name} failed to propose tool '{new_tool['name']}': {str(e)}. State: {json.dumps(self.state)}"
     

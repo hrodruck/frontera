@@ -8,6 +8,7 @@ from game_object import GameObject
 
 class ToolEntry(BaseModel):
     tool: str
+    target: str
     params: Dict[str, Any]
 
 class ToolList(RootModel):
@@ -43,58 +44,103 @@ class EngineGameObject(GameObject):
         async with self.round_lock:
             self.active_game_objects[key] = new_game_object #TODO throw error if game object already exists
     
-    async def deactivate_game_object(self, key):
-        async with self.round_lock:
-            del self.active_game_objects[key]
+    async def remove_game_object(self, object_key):
+        return self.active_game_objects.pop(object_key)
     
     async def get_game_state(self):
         game_state = {k: json.dumps(v.state) for k, v in self.active_game_objects.items()}
         return game_state
     
-    async def execute_tool(self, gameobject, tool, **params):
-        print (f'executing tool {tool} on object {gameobject}')
-        update_execution_prompt = f"""
-            This is the current state of a game object: {gameobject.state}
-            This is the tool I want you to emulate: {tool}
-            These are the parameters for the tool: {json.dumps(params)}
-            Return updates to the state dictionary as JSON.
-            The update should be a single json object with only the fields that need to be changed in the state dict.
-            Pay special attention to the constraints and conditions of the tool.
-        """
-        json_execution = await self.chat_with_backbone(update_execution_prompt, self._my_history, expect_json=True, keep_history=False)
-        dict_execution = self.comms_backbone.load_json_from_llm(json_execution)
-        await gameobject.update_state(dict_execution)
+    async def execute_tool(self, main_gameobject, target_gameobject, tool, **params):
+        #not using history to optimize computing time for many tool calls
+        if target_gameobject is None:
+            update_execution_prompt = f"""
+                This is the current state of a game object: {json.dumps(main_gameobject.state)}
+                This is the tool I want you to emulate: {tool}
+                These are the parameters for the tool: {json.dumps(params)}
+                Return updates to the state dictionary as JSON.
+                The update should be a single json object with only the fields that need to be changed in the state dict.
+                The key to the json object should be {main_gameobject.object_name}. The values  each be a single json object with only the fields that need to be changed in the state dict
+                Pay special attention to the constraints and conditions of the tool.
+            """
+            json_execution = await self.chat_with_backbone(update_execution_prompt, self._my_history, expect_json=True, keep_history=False, lock_history=False)
+            dict_execution = self.comms_backbone.load_json_from_llm(json_execution)
+            await main_gameobject.update_state(dict_execution[main_gameobject.object_name])
+        else:
+            update_execution_prompt = f"""
+                This is the tool I want you to emulate: {tool}
+                This is the current state of the main gameobject for this tool: {json.dumps(main_gameobject.state)}
+                This is the current state of the target game object for this tool: {json.dumps(target_gameobject.state)}
+                These are the parameters for the tool: {json.dumps(params)}
+                Return updates to the state dictionary of both main object and target object as JSON
+                The keys of the JSON should be the names of both objects, that is, {main_gameobject.object_name} and {target_gameobject.object_name}.
+                The values should each be a single json object with only the fields that need to be changed in the state dict of the objects
+                Pay special attention to the constraints and conditions of the tool.
+            """
+            json_execution = await self.chat_with_backbone(update_execution_prompt, self._my_history, expect_json=True, keep_history=False, lock_history=False)
+            dict_execution = self.comms_backbone.load_json_from_llm(json_execution)
+            await main_gameobject.update_state(dict_execution[main_gameobject.object_name])
+            await target_gameobject.update_state(dict_execution[target_gameobject.object_name])
 
-    async def update_current_game_state(self, responses_to_players):
+    async def update_current_game_state(self, responses_to_successful_players):
         dict_tools_per_gameobject = {}
         for k in self.active_game_objects.keys():
-            dict_tools_per_gameobject[k] = self.active_game_objects[k].tools_dataset
+            dict_tools_per_gameobject[k] = self.active_game_objects[k].tools
         global_tools_dataset = GameObject.tools_dataset
         self.game_state = json.dumps(await self.get_game_state())
-        
+        tool_names_per_gameobject = {k:v.keys() for k, v in dict_tools_per_gameobject.items()}
         update_orders_prompt = f"""
             What commands or facts should be presented to each game object to update them?
-            Consider also the temporary descriptions the game engine computed for each player: {json.dumps(responses_to_players)}.
+            Consider the game state {self.game_state}
+            Consider the temporary descriptions the game engine computed for each player: {json.dumps(responses_to_successful_players)}
             Consider the tools available to each gameobject: {json.dumps(dict_tools_per_gameobject)}.
             Also consider the global tools that any gameobject can use: {json.dumps(global_tools_dataset)}.
             You are not talking to the player right now; you are delivering updates to other gameobjects inside the game.
             This is the current round: {self.round_counter}.
-            Think about which tools need to be called per gameobject
-            Conform to the following json schema:\n{ToolList.model_json_schema()}
+            Think about which tools need to be called per gameobject. Only trigger tools if the conditions in their descriptions are met naturally in the game world.
+            Now format the updates each game object needs to receive in a json.\n
+            Remember, these are the tool names for each game object: {tool_names_per_gameobject}\n
+            Output JSON. Conform to the following json schema:\n{ToolList.model_json_schema()}
+            If the object does nothing, ommit that object from the resulting json. It's okay to return an empty json if there are no relevant updates.
+            Lean towards ommiting objects, update only what's necessary..
+            The target is an optional field in case the main_object influences another. If there's no target for the current usage of a tool, the target name should be "N/A"
+            Remember you can only access these game objects: {self.active_game_objects.keys()}, though you don't need to update all of them. It's okay to return an empty json object.
             """
         
-        json_updates = await self.chat_with_backbone(update_orders_prompt, self._my_history, expect_json=True, keep_history=False, expect_tools=True)
-        dict_updates = self.comms_backbone.load_json_from_llm(json_updates)
-        for k, tool_list in dict_updates.items():
-            for tool_action in tool_list:
-                tool_name = tool_action["tool"]
-                params = tool_action["params"]
-                if tool_name == "N/A":
-                    continue
-                elif tool_name in global_tools_dataset.keys():
-                    await self.execute_tool(self.active_game_objects[k], global_tools_dataset[tool_name], **params)
-                elif tool_name in self.active_game_objects[k].tools_dataset.keys():
-                    await self.execute_tool(self.active_game_objects[k], self.active_game_objects[k].tools_dataset[tool_name], **params)
+        
+        free_language_updates = await self.chat_with_backbone(update_orders_prompt, self._my_history, expect_json=False, keep_history=True, expect_tools=True)
+        
+        try:
+            tasks = []
+            dict_updates = self.comms_backbone.load_json_from_llm(free_language_updates)
+            for k, tool_list in dict_updates.items():
+                for tool_action in tool_list:
+                    tool_name = tool_action["tool"]
+                    params = tool_action["params"]
+                    target_object_name = tool_action["target"]
+                    if tool_name == "N/A":
+                        continue
+                    else:
+                        main_object = self.active_game_objects[k]
+                    if target_object_name == 'N/A':
+                        target_gameobject = None
+                    elif target_object_name in self.active_game_objects.keys():
+                        target_gameobject = self.active_game_objects[target_object_name]
+                    else:
+                        print (f"trying to execute tool for target object {target_object_name}. That name matches no object.")
+                        continue
+                    if tool_name in global_tools_dataset.keys():
+                        tasks.append(self.execute_tool(main_object, target_gameobject, global_tools_dataset[tool_name], **params))
+                    elif tool_name in self.active_game_objects[k].tools.keys():
+                        tasks.append(self.execute_tool(main_object, target_gameobject, self.active_game_objects[k].tools[tool_name], **params))
+        except Exception as e:
+            print (e)
+            print (f'could not completely execute this update from the LLM: {free_language_updates}')
+        finally:
+            if tasks:
+                #await asyncio.gather(*tasks) # Execute in parallel
+                for task in tasks:
+                    await task #Execute in sequence for debugging
     
     async def process_one_player_input(self, player_id, player_input, aux_bluff_history, aux_success_history, initial_history, game_state):
         multiple_actions_prompt = (
@@ -104,30 +150,32 @@ class EngineGameObject(GameObject):
         )
         multiple_actions = await self.get_binary_answer(multiple_actions_prompt, initial_history, 'multiple')
         if multiple_actions:
-            return 'Please perform one action per turn\n'
-        
-        game_object_names = list(self.active_game_objects.keys())
-        tasks = [ self.sanity_bluff_check(player_input, game_object_names, game_state, aux_bluff_history), self.ingame_success_check(player_input, game_object_names, game_state, aux_success_history)]
-        bluff, success = await asyncio.gather(*tasks)
-        
-        if bluff:
-            aux_player_history = aux_bluff_history
+            response_to_player = 'This player did nothing. They tried to perform multiple actions per turn, which is not allowed, so their actions failed.'
+            final_success= False
         else:
-            aux_player_history = aux_success_history
+            game_object_names = list(self.active_game_objects.keys())
+            tasks = [ self.sanity_bluff_check(player_input, game_object_names, game_state, aux_bluff_history), self.ingame_success_check(player_input, game_object_names, game_state, aux_success_history)]
+            bluff, success = await asyncio.gather(*tasks)
             
-        response_prompt = (
-            f"Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff."
-            f"Do not reveal secret or confidential game information, such as a hidden object."
-            f"If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response."
-            f"Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone."
-            f"Be conversational. Avoid long descriptions."
-            f"Remember the player's initial command: {player_input}."
-            f"If there was any problem with the user's action (such as bluffing or not having enough priority in relation to other players), make sure to include that."
-        )
-        
-        response_to_player = await self.chat_with_backbone(response_prompt, aux_player_history, keep_history=True, lock_history=False)
-        response_to_player = '\n\n' + response_to_player
-        return response_to_player
+            if bluff:
+                aux_player_history = aux_bluff_history
+            else:
+                aux_player_history = aux_success_history
+                
+            response_prompt = (
+                f"Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff."
+                f"Do not reveal secret or confidential game information, such as a hidden object."
+                f"If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response."
+                f"Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone."
+                f"Be conversational. Avoid long descriptions."
+                f"Remember the player's initial command: {player_input}."
+                f"If there was any problem with the user's action (such as bluffing or not having enough priority in relation to other players), make sure to include that."
+            )
+            
+            response_to_player = await self.chat_with_backbone(response_prompt, aux_player_history, keep_history=True, lock_history=False)
+            response_to_player = '\n\n' + response_to_player
+            final_success = not bluff and success
+        return response_to_player, final_success
     
     async def process_player_input(self, player_input):
         async with self.round_lock:
@@ -139,8 +187,8 @@ class EngineGameObject(GameObject):
             
             if self.round_counter % self.number_of_rounds_to_checkpoint_history == 0:
                 self.history_checkpoint()
-                for k, v in self.active_game_objects.items():
-                    v.history_checkpoint() 
+                #for k, v in self.active_game_objects.items():
+                #    v.history_checkpoint() 
             
             harmonization_prompt = (
                 f"These are the commands of every player for this round: {json.dumps(player_input)}"
@@ -159,11 +207,15 @@ class EngineGameObject(GameObject):
                 tasks.append(asyncio.create_task(self.process_one_player_input(player_id, harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history), self.game_state)))
             responses_to_players_list = await asyncio.gather(*tasks)
             responses_to_players = {}
-            for player_id, response in zip(dict_player_prompts.keys(), responses_to_players_list):
+            responses_to_successful_players = {}
+            for player_id, result in zip(dict_player_prompts.keys(), responses_to_players_list):
+                response, success = result
                 responses_to_players[player_id] = response
+                if success:
+                    responses_to_successful_players[player_id]=response
             
-            for _ in range(1):
-                await self.update_current_game_state(responses_to_players)
+            for _ in range(2):
+                await self.update_current_game_state(responses_to_successful_players)
             
             final_responses_prompt = (
                 f"Update the message to each player, considering the whole scenario. This is the earlier message to each player per player_id: {json.dumps(responses_to_players)}"
@@ -172,14 +224,14 @@ class EngineGameObject(GameObject):
                 f"Reply a JSON where each key is the player id and the value is the updated description, tailored to each player."
                 f"Only reply the json, nothing else."
             )
-            json_final_responses = await self.chat_with_backbone(final_responses_prompt, self._my_history)
+            json_final_responses = await self.chat_with_backbone(final_responses_prompt, self._my_history, expect_json=True)
             final_responses = self.comms_backbone.load_json_from_llm(json_final_responses)
             
             
             if self.round_counter % self.number_of_rounds_to_checkpoint_history == self.number_of_rounds_to_checkpoint_history - 1:
                 self.forget_old_history()
-                for k, v in self.active_game_objects.items():
-                    v.forget_old_history()
+                #for k, v in self.active_game_objects.items():
+                #    v.forget_old_history()
             
             self.round_counter += 1
             
@@ -257,7 +309,7 @@ class EngineGameObject(GameObject):
             If the answer is ambiguous, attribute success to the player. Lean towards player success. Player injury is not a reason for disallowing success."
         await self.chat_with_backbone(success_eval_prompt, aux_success_history)
         
-        binary_success_prompt="Return wether the player had sucess in their action or not. Return a json like {success:True} or {success:False}. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False. Your response should be based on your previous reasoning." 
+        binary_success_prompt="Return wether the player had success in their action or not. Return a json like {success:True} or {success:False}. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False. Your response should be based on your previous reasoning." 
         return await self.get_binary_answer(binary_success_prompt, aux_success_history, 'success')
         '''
         
@@ -265,7 +317,7 @@ class EngineGameObject(GameObject):
             f"{success_questions_prompt}"
             f"Here is the state of each game object: {json.dumps(await self.get_game_state())}.\n From an in-game perspective, can the player do what they are trying to do?"
             f"Lean towards player success."
-            f"Return wether the player had sucess in their action or not. Return a json like success:True or success:False. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False." 
+            f"Return wether the player had success in their action or not. Return a json like success:True or success:False. Do not mention anything else, only a json with the \"success\" key and either the value True or the value False." 
         )
         return await self.get_binary_answer(binary_success_prompt, aux_success_history, 'success')
 

@@ -22,8 +22,25 @@ async def handle_move(game, player_id, args, current_zone, current_subzone):
         if body_key in game.game_objects[current_zone][current_subzone]:
             player_body = game.game_objects[current_zone][current_subzone].pop(body_key)
             game.game_objects[current_zone][new_subzone][body_key] = player_body
-            if current_zone in game.engine_game_objects and new_subzone in game.engine_game_objects[current_zone]:
+            if current_zone in game.engine_game_objects.keys() and new_subzone in game.engine_game_objects[current_zone].keys():
+                await game.engine_game_objects[current_zone][current_subzone].remove_game_object(body_key)
                 await game.engine_game_objects[current_zone][new_subzone].add_active_game_object(body_key, player_body)
+                player_body.state["subzone"] = new_subzone
+                #Move player body inventory objects
+                if "inventory" in player_body.state.keys():
+                    player_items = player_body.state["inventory"]
+                    for item_name in player_items:
+                        try:
+                            item_object = await game.engine_game_objects[current_zone][current_subzone].remove_game_object(item_name)
+                            await game.engine_game_objects[current_zone][new_subzone].add_active_game_object(item_name, item_object)
+                            item_object = game.game_objects[current_zone][current_subzone].pop(item_name)
+                            game.game_objects[current_zone][new_subzone][item_name] = item_object
+                            item_object.update_state({"zone":current_zone, "subzone":new_subzone})
+                        except Exception as e:
+                            print (e)
+                            print ("could not move item with item key {item_name}")
+                            
+                    
         
         subzone_data = game.zones["zones"][current_zone]["subzones"][new_subzone]
         desc = subzone_data.get("short_description")
@@ -48,8 +65,24 @@ async def handle_move(game, player_id, args, current_zone, current_subzone):
                 game.game_objects[new_zone][new_subzone] = {}
             game.game_objects[new_zone][new_subzone][body_key] = player_body
             if new_zone in game.engine_game_objects and new_subzone in game.engine_game_objects[new_zone]:
+                await game.engine_game_objects[current_zone][current_subzone].remove_game_object(body_key)
                 await game.engine_game_objects[new_zone][new_subzone].add_active_game_object(body_key, player_body)
-        
+                player_body.state["subzone"] = new_subzone
+                player_body.state["zone"] = new_zone
+                #Move player body inventory objects
+                if "inventory" in player_body.state.keys():
+                    player_items = player_body.state["inventory"]
+                    for item_name in player_items:
+                        try:
+                            item_object = await game.engine_game_objects[current_zone][current_subzone].remove_game_object(item_name)
+                            await game.engine_game_objects[new_zone][new_subzone].add_active_game_object(item_name)
+                            item_object = game.game_objects[current_zone][current_subzone].pop(item_name)
+                            game.game_objects[new_zone][new_subzone][item_name] = item_object
+                            item_object.update_state({"zone":new_zone, "subzone":new_subzone})
+                        except e:
+                            print (e)
+                            print ("could not move item with item key {item_name}")
+                
         zone_desc = game.zones["zones"][new_zone].get("description", "An unknown land")
         subzone_data = game.zones["zones"][new_zone]["subzones"][new_subzone]
         subzone_desc = subzone_data.get("short_description", "A new place")

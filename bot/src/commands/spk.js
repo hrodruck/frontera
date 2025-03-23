@@ -1,7 +1,7 @@
 // spk.js
 require('dotenv').config();
 const { processInput } = require('../serverConnection'); // Remove getPlayerProgress
-const { isPlayerLoggedIn, updateLastActivity, startPolling } = require('../playerState'); // Remove startPolling
+const { isPlayerLoggedIn, updateLastActivity } = require('../playerState'); 
 
 const SESSION_ID = process.env.SESSION_ID;
 

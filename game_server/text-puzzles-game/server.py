@@ -102,7 +102,7 @@ async def game_update(session_id):
             break
 
 async def get_player_progress(session_id, player_id):
-    if player_id in game_responses_per_player.get(session_id):
+    if game_responses_per_player and player_id in game_responses_per_player.get(session_id):
         player_response = game_responses_per_player[session_id][player_id]
         game_responses_per_player[session_id][player_id] = ''
         return player_response
@@ -143,22 +143,12 @@ async def start_game(data: StartGameData):
         if not game:
             game = Game()
             await new_session(session_id, game)
-            game.set_all_zones(zones_data)
-            # Add player with default location
+            await game.set_all_zones(zones_data)
             default_zone = zones_data.get("defaultZone")        
             default_subzone = zones_data.get("defaultSubzone")
-            zone_data = zones_data["zones"].get(default_zone)
-            subzone_data = zone_data.get("subzones").get(default_subzone)
-            scene_description = subzone_data.get("objects")
-            await game.set_scene(
-                scene_description=scene_description,
-                zone=default_zone,
-                subzone=default_subzone,
-            )
-            
-            await game.add_player(player_id, default_zone, default_subzone)            
             print(f"Starting game for session {session_id}, player {player_id} at {default_zone}/{default_subzone}")
             await game.start_game(zone=default_zone, subzone=default_subzone)
+            await game.add_player(player_id, default_zone, default_subzone)
             return JSONResponse(content={"status": "success", "message": "New game started!"})
         else:
             # Add player with default location

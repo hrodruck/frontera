@@ -1,0 +1,272 @@
+{
+  "zones": {
+    "cinthria": {
+      "description": "Welcome to the town of Cinthria!",
+      "subzones": {
+        "prison-vault": {
+            "short_description": "An unwelcoming place",
+            "long_description": "This is a place to store prisoners in the city of Cinthria. You have no idea why you're here. Maybe there's a way to get out...",
+            "objects": {
+              "door": {
+                "initial_state": {
+                  "is_locked": true,
+                  "exit_leads_to": "the-ravenous-raven",
+                  "human_readable_description": "A large, old wooden door with an inconspicuous keyhole."
+                },
+                "tools": {
+                  "unlock": {
+                    "name": "unlock",
+                    "human_readable_description": "Unlocks the door if a key is used",
+                    "function": "update is_locked to false if one of the params is key_001"
+                  },
+                  "pass_through": {
+                    "name": "pass_through",
+                    "human_readable_description": "Adds subzone or zone to list of allowed_moves for anyone who opens the door",
+                    "function": "lambda self, target: target.update_state({\"allowed_moves\": (self.state.get(\"exit_leads_to\"))}) if (self.state.get(\"exit_leads_to\")) in target.state.get(\"existing_places\", []) else 'It seems that place does not exist'",
+                    "reviewed": true
+                  }
+                },
+                "components": ["breakable"]
+              },
+              "doormat": {
+                "initial_state": {
+                  "is_flammable": true,
+                  "is_burned": false,
+                  "location_within_subzone": "Next to the door",
+                  "human_readable_description": "A flammable doormat"
+                },
+                "tools": {
+                  "burn": {
+                    "name": "burn",
+                    "human_readable_description": "Sets the doormat on fire if exposed to a flame",
+                    "function": "lambda self, flame_source=None: Here’s what happens when you try to burn the doormat. Only if a flame_source is present and it is indeed a lit source of fire and it directly exposes the doormat to flame—meaning the flame is close enough to touch or nearly touch the doormat—then update the doormat’s state so that it is burned, and it becomes a pile of ash in its description, plus the doormat breaks completely. Otherwise, if no flame_source is provided, or it isn’t lit, or it isn’t close enough to directly affect the doormat, return a failure notice saying the doormat isn’t exposed to a flame sufficient to burn it."
+                  }
+                },
+                "components": ["breakable"]
+              },
+              "torch": {
+                "initial_state": {
+                  "is_lit": true,
+                  "location_within_subzone": "mounted on wall",
+                  "fuel_level": 100,
+                  "human_readable_description": "A torch, burning brightly"
+                },
+                "tools": {
+                  "snuff": {
+                    "name": "snuff",
+                    "human_readable_description": "Puts out the torch",
+                    "function": "lambda self: self.update_state({\"is_lit\": False})"
+                  },
+                  "consume_fuel": {
+                    "name": "consume_fuel",
+                    "human_readable_description": "Reduces fuel level, deactivates object if depleted",
+                    "function": "lambda self, amount: self.update_state({\"fuel_level\": self.state['fuel_level'] - amount}) if 'fuel_level' in self.state and self.state['fuel_level'] > amount else self.update_state({\"fuel_level\": 0, \"is_lit\": False}) if 'fuel_level' in self.state else {'success': False, 'message': 'Fuel level not found'}"
+                  }
+                },
+                "components": ["graspable"]
+              },
+              "key_001": {
+                "initial_state": {
+                  "is_hidden": true,
+                  "location_within_subzone": "under_doormat",
+                  "human_readable_description": "This is key_001."
+                },
+                "tools": {
+                  "reveal": {
+                    "name": "reveal",
+                    "human_readable_description": "Makes the key visible and available",
+                    "function": "lambda self: self.update_state({\"is_hidden\": False})"
+                  }
+                },
+                "components": ["graspable"]
+              }
+            }
+        },
+        "the-ravenous-raven": {
+            "short_description": "The most popular only tavern in town",
+            "long_description": "Finally sober, huh? Well, let's fix that! The Ravenous Raven is a lively tavern filled with the clatter of mugs, the smell of ale, and the occasional drunken brawl.",
+            "objects": {
+                "prison-door": {
+                    "initial_state": {
+                        "is_locked": true,
+                        "exit_leads_to": "the-ravenous-raven",
+                        "human_readable_description": "A door you don’t feel like opening, leading back to the grim prison-vault."
+                    },
+                    "tools": {
+                        "touch": {
+                            "name": "touch",
+                            "human_readable_description": "What happens if you touch the tavern door",
+                            "function": "lambda self, target: 'Nothing much happens, but the target doesn’t feel like going through the door anymore'"
+                        }
+                    }
+                },
+                "barrel-of-ale": {
+                    "initial_state": {
+                        "is_full": true,
+                        "is_empty": false,
+                        "volume": 50,
+                        "contents": "ale",
+                        "location_within_subzone": "behind the bar",
+                        "human_readable_description": "A sturdy wooden barrel brimming with 50 liters of frothy ale."
+                    },
+                    "tools": {
+                        "tap": {
+                            "name": "tap",
+                            "human_readable_description": "Draws a mug of ale (1 liter) from the barrel",
+                            "function": "lambda self: self.update_state({\"volume\": self.state[\"volume\"] - 1, \"is_full\": False, \"is_empty\": True if (self.state[\"volume\"] - 1 <= 0) else False, \"human_readable_description\": f\"A sturdy wooden barrel containing {self.state['volume'] - 1} liters of frothy ale\" if (self.state['volume'] - 1 > 0) else \"A sturdy wooden barrel, now empty\"}) if self.state['volume'] > 0 else 'The barrel is already empty'"
+                        },
+                        "smash": {
+                            "name": "smash",
+                            "human_readable_description": "Breaks the barrel, spilling all its contents",
+                            "function": "lambda self: self.update_state({\"is_full\": False, \"is_empty\": True, \"volume\": 0, \"human_readable_description\": \"A broken barrel, its ale soaking the floor\"})"
+                        },
+                        "check_volume": {
+                            "name": "check_volume",
+                            "human_readable_description": "Checks how much ale is left in the barrel",
+                            "function": "lambda self: f'The barrel contains {self.state[\"volume\"]} liters of ale' if self.state['volume'] > 0 else 'The barrel is empty'"
+                        }
+                    },
+                    "components": ["breakable"]
+                },
+                "wooden-mug_001": {
+                    "initial_state": {
+                        "is_filled": false,
+                        "location_within_subzone": "scattered on tables",
+                        "human_readable_description": "An empty wooden mug, slightly sticky from past use."
+                    },
+                    "tools": {
+                        "fill": {
+                            "name": "fill",
+                            "human_readable_description": "Fills the mug with ale if near the barrel",
+                            "function": "lambda self, source: self.update_state({\"is_filled\": True, \"human_readable_description\": \"A wooden mug filled with frothy ale\"}) if source.state.get(\"contents\") == \"ale\" and source.state.get(\"is_full\") else 'The barrel is empty or missing'"
+                        },
+                        "drink": {
+                            "name": "drink",
+                            "human_readable_description": "Drinks the contents of the mug",
+                            "function": "lambda self: self.update_state({\"is_filled\": False, \"human_readable_description\": \"An empty wooden mug, slightly sticky from past use\"}) if self.state['is_filled'] else 'The mug is already empty'"
+                        }
+                    },
+                    "components": ["graspable"]
+                },
+                "wooden-mug_002": {
+                    "initial_state": {
+                        "is_filled": false,
+                        "location_within_subzone": "scattered on tables",
+                        "human_readable_description": "An empty wooden mug, slightly sticky from past use."
+                    },
+                    "tools": {
+                        "fill": {
+                            "name": "fill",
+                            "human_readable_description": "Fills the mug with ale if near the barrel",
+                            "function": "lambda self, source: self.update_state({\"is_filled\": True, \"human_readable_description\": \"A wooden mug filled with frothy ale\"}) if source.state.get(\"contents\") == \"ale\" and source.state.get(\"is_full\") else 'The barrel is empty or missing'"
+                        },
+                        "drink": {
+                            "name": "drink",
+                            "human_readable_description": "Drinks the contents of the mug",
+                            "function": "lambda self: self.update_state({\"is_filled\": False, \"human_readable_description\": \"An empty wooden mug, slightly sticky from past use\"}) if self.state['is_filled'] else 'The mug is already empty'"
+                        }
+                    },
+                    "components": ["graspable"]
+                },
+                "tavern-table": {
+                    "initial_state": {
+                        "is_sturdy": true,
+                        "location_within_subzone": "center of the room",
+                        "human_readable_description": "A heavy oak table scarred from years of use."
+                    },
+                    "tools": {
+                        "flip": {
+                            "name": "flip",
+                            "human_readable_description": "Flips the table in a fit of rage or revelry",
+                            "function": "lambda self: self.update_state({\"is_sturdy\": False, \"human_readable_description\": \"A flipped oak table, now a mess of splinters\"})"
+                        }
+                    },
+                    "components": ["breakable"]
+                },
+                "flickering-lantern": {
+                    "initial_state": {
+                        "is_lit": true,
+                        "fuel_level": 50,
+                        "location_within_subzone": "hanging from the ceiling",
+                        "human_readable_description": "A rusty lantern casting a warm, flickering glow."
+                    },
+                    "tools": {
+                        "snuff": {
+                            "name": "snuff",
+                            "human_readable_description": "Puts out the lantern",
+                            "function": "lambda self: self.update_state({\"is_lit\": False, \"human_readable_description\": \"A rusty lantern, now dark and cold\"})"
+                        },
+                        "refill": {
+                            "name": "refill",
+                            "human_readable_description": "Refills the lantern’s oil",
+                            "function": "lambda self: self.update_state({\"fuel_level\": 100}) if self.state['is_lit'] == False else 'You can’t refill it while it’s burning'"
+                        }
+                    },
+                    "components": ["graspable"]
+                },
+                "drunken-patron": {
+                    "initial_state": {
+                        "can_talk": false,
+                        "location_within_subzone": "slumped in a corner",
+                        "human_readable_description": "A bleary-eyed patron mumbling about lost treasure.",
+                        "topics":{
+                            "topic_001": "Talk about ale and beer, nothing else",
+                            "topic_002": "Mention the dumb taverner copies the same key for every door"
+                        }
+                    },
+                    "tools": {
+                        "wake": {
+                            "name": "wake",
+                            "human_readable_description": "Tries to rouse the patron",
+                            "function": "lambda self: self.update_state({\"can_talk\": True, \"human_readable_description\": \"A bleary-eyed patron, now slightly more alert\"}) if the patron is offered a drink else return 'the drunkard rambles, dreaming of more ale.' "
+                        },
+                        "change_topics": {
+                            "name": "change_topics",
+                            "human_readable_description": "Gets the patron to stop discussing drinks and talk about something else",
+                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['human_readable_description'] to reflect the new focus, like 'A bleary-eyed patron, now muttering about keys and locks.' Return a short transition message, such as 'The patron slurs, “Enough about ale—lemme tell ya somethin’ else…”' flavored to match his drunken state. If self.state['can_talk'] is False, return a rejection like 'The patron’s too far gone to switch subjects—snoring or slurring nonsense.'"
+                        }
+                    },
+                    "components": ["dialogue"]
+                },
+                "taverner": {
+                    "initial_state": {
+                        "can_talk": true,
+                        "location_within_subzone": "behind the bar counter",
+                        "human_readable_description": "The owner of the ravenous raven",
+                        "topics":{
+                            "topic_001": "Talks about how drunk the customer was, so much that he got locked to stop causing trouble. Sometimes, there are very subtle hints at the possibility of trading information for coin.",
+                            "topic_002": "Complains about the recent ban on slave trading, saying it's not fair, although none of his business",
+                            "topic_003": "Offers covertly to sell slaves"
+                        }
+                    },
+                    "tools": {
+                        "bribe_for_information": {
+                            "name": "bribe_for_information",
+                            "human_readable_description": "Asks the bartender for more information",
+                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['human_readable_description'] to reflect the new focus if the bartender is offered monetary compensation for the information (at least 1 gold) else return 'I suppose I could discuss this with a wealthy patron...'"
+                        },
+                        "change_to_slave_trading_topic": {
+                            "name": "change_to_slave_trading_topic",
+                            "human_readable_description": "Gets the bartender to talk about a more confidencial subject, which is the bartender's slaves to sell",
+                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' if the player shows open enough and sympathetic to the ideas of topic_002"
+                        }
+                    },
+                    "components": ["dialogue"]
+                }
+            }
+        },
+        "town-hall": {
+            "short_description": "For all official matters"
+        },
+        "temple-in-cinthria": {
+            "short_description": "A sacred temple with ancient carvings on the walls."
+        },
+        "market-square": {
+            "short_description": "(not-implemented) A bustling market filled with merchants."
+        }
+      }
+    }
+  },
+  "defaultZone": "cinthria",
+  "defaultSubzone": "prison-vault"
+}
