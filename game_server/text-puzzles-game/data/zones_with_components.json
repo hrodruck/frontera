@@ -208,7 +208,6 @@
                     "initial_state": {
                         "can_talk": false,
                         "location_within_subzone": "slumped in a corner",
-                        "human_readable_description": "A bleary-eyed patron mumbling about lost treasure.",
                         "topics":{
                             "topic_001": "Talk about ale and beer, nothing else",
                             "topic_002": "Mention the dumb taverner copies the same key for every door"
@@ -232,11 +231,25 @@
                     "initial_state": {
                         "can_talk": true,
                         "location_within_subzone": "behind the bar counter",
-                        "human_readable_description": "The owner of the ravenous raven",
-                        "topics":{
-                            "topic_001": "Talks about how drunk the customer was, so much that he got locked to stop causing trouble. Sometimes, there are very subtle hints at the possibility of trading information for coin.",
-                            "topic_002": "Complains about the recent ban on slave trading, saying it's not fair, although none of his business",
-                            "topic_003": "Offers covertly to sell slaves"
+                        "topics": {
+                            "topic_001": [
+                                "Last night, a customer got so drunk he couldn’t walk straight.",
+                                "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
+                                "Some of these fools blabber secrets when they’re deep in their cups.",
+                                "A coin or two might loosen my tongue about what I’ve heard."
+                            ],
+                            "topic_002": [
+                                "The new ban on slave trading is ruining good business around here.",
+                                "I think it’s unfair they’ve outlawed a man’s right to trade slaves.",
+                                "Folks used to make decent gold dealing in slaves, back in the day.",
+                                "I steer clear of that trade now, though—not my concern anymore."
+                            ],
+                            "topic_003": [
+                                "I’ve got a few slaves hidden away for someone who’s not too picky.",
+                                "If you’re quiet about it, I could sell you a sturdy worker.",
+                                "My slaves are strong and won’t cause you any trouble.",
+                                "This stays between us—don’t go spreading word of my stock."
+                            ]
                         }
                     },
                     "tools": {

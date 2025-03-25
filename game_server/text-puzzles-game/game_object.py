@@ -71,9 +71,11 @@ class GameObject:
         """Helper method to safely update the state dictionary."""
         print (f'\n== called update_state==')
         print (f'{updates=}\n')
+        sanitized_updates = {k:v for k, v in updates.items() if k in self.state.keys()}
+        print (f'{sanitized_updates=}\n')
         async with self.processing_lock:
             try:
-                self.state.update(updates)
+                self.state.update(sanitized_updates)
             except Exception as e:
                 print(e)
         return self.state

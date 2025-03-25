@@ -1,7 +1,7 @@
 async def handle_move(game, player_id, args, current_zone, current_subzone):
     """Handle movement between zones and subzones."""
     target = args.strip()
-    target.replace('_', '-')
+    target = target.replace('_', '-')
     if not target:
         return "Where do you want to move?"
 

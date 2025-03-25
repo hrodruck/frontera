@@ -361,7 +361,6 @@
               "initial_state": {
                 "can_talk": false,
                 "location_within_subzone": "slumped in a corner",
-                "human_readable_description": "A bleary-eyed patron mumbling about lost treasure.",
                 "topics": {
                   "topic_001": "Talk about ale and beer, nothing else",
                   "topic_002": "Mention the dumb taverner copies the same key for every door"
@@ -381,8 +380,8 @@
                 },
                 "talk": {
                   "name": "talk",
-                  "human_readable_description": "Discuss about the current_topic",
-                  "function": "lambda self, player: If self.state['can_talk'] is True, generate and return a dialogue string based on the description in self.state['topics'][self.state['current_topic']], flavored to suit the object\u2019s personality and situation. If self.state['can_talk'] is False, return a short message like 'It\u2019s not in the mood to chat' or something fitting the object\u2019s current state and context."
+                  "human_readable_description": "Speaks a random phrase from the current topic",
+                  "function": "lambda self, player: import random; return random.choice(self.state['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.'"
                 }
               }
             },
@@ -390,12 +389,7 @@
               "initial_state": {
                 "can_talk": true,
                 "location_within_subzone": "behind the bar counter",
-                "human_readable_description": "The owner of the ravenous raven",
-                "topics": {
-                  "topic_001": "Talks about how drunk the customer was, so much that he got locked to stop causing trouble. Sometimes, there are very subtle hints at the possibility of trading information for coin.",
-                  "topic_002": "Complains about the recent ban on slave trading, saying it's not fair, although none of his business",
-                  "topic_003": "Offers covertly to sell slaves"
-                },
+                "last_sentence_said": "",
                 "current_topic": "topic_001"
               },
               "tools": {
@@ -411,8 +405,30 @@
                 },
                 "talk": {
                   "name": "talk",
-                  "human_readable_description": "Discuss about the current_topic",
-                  "function": "lambda self, player: If self.state['can_talk'] is True, generate and return a dialogue string based on the description in self.state['topics'][self.state['current_topic']], flavored to suit the object\u2019s personality and situation. If self.state['can_talk'] is False, return a short message like 'It\u2019s not in the mood to chat' or something fitting the object\u2019s current state and context."
+                  "human_readable_description": "Speaks a random phrase from the current topic",
+                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.'",
+                  "extra_data": {
+                      "topics": {
+                          "topic_001": [
+                            "Last night, a customer got so drunk he couldn\u2019t walk straight.",
+                            "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
+                            "Some of these fools blabber secrets when they\u2019re deep in their cups.",
+                            "A coin or two might loosen my tongue about what I\u2019ve heard."
+                          ],
+                          "topic_002": [
+                            "The new ban on slave trading is ruining good business around here.",
+                            "I think it\u2019s unfair they\u2019ve outlawed a man\u2019s right to trade slaves.",
+                            "Folks used to make decent gold dealing in slaves, back in the day.",
+                            "I steer clear of that trade now, though\u2014not my concern anymore."
+                          ],
+                          "topic_003": [
+                            "I\u2019ve got a few slaves hidden away for someone who\u2019s not too picky.",
+                            "If you\u2019re quiet about it, I could sell you a sturdy worker.",
+                            "My slaves are strong and won\u2019t cause you any trouble.",
+                            "This stays between us\u2014don\u2019t go spreading word of my stock."
+                          ]
+                        }
+                  }
                 }
               }
             }

@@ -3,6 +3,7 @@
     "initial_state": {
         "is_injured": false,
         "gold": 10,
+        "inventory":[],
         "zone": "cinthria",
         "subzone": "prison-vault",
         "allowed_moves": ["prison-vault"],

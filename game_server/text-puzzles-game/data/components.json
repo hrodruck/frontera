@@ -56,16 +56,16 @@
             "current_topic": "topic_001",
             "can_talk": true,
             "topics": {
-                "topic_001": "Exchange pleasantries, nothing else"
+                "topic_001": ["hello!"]
             }
         },
-        "tools":[
-            {        
+        "tools": [
+            {
                 "name": "talk",
-                "human_readable_description": "Discuss about the current_topic",
-                "function": "lambda self, player: If self.state['can_talk'] is True, generate and return a dialogue string based on the description in self.state['topics'][self.state['current_topic']], flavored to suit the object’s personality and situation. If self.state['can_talk'] is False, return a short message like 'It’s not in the mood to chat' or something fitting the object’s current state and context."
+                "human_readable_description": "Speaks a random phrase from the current topic",
+                "function": "lambda self, player: import random; return random.choice(self.state['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.'"
             }
         ],
-        "implied_components":[]
+        "implied_components": []
     }
 }

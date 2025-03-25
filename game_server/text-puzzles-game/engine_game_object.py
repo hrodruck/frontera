@@ -82,7 +82,7 @@ class EngineGameObject(GameObject):
             await main_gameobject.update_state(dict_execution[main_gameobject.object_name])
             await target_gameobject.update_state(dict_execution[target_gameobject.object_name])
 
-    async def update_current_game_state(self, responses_to_successful_players):
+    async def update_current_game_state(self, responses_to_players):
         dict_tools_per_gameobject = {}
         for k in self.active_game_objects.keys():
             dict_tools_per_gameobject[k] = self.active_game_objects[k].tools
@@ -92,7 +92,7 @@ class EngineGameObject(GameObject):
         update_orders_prompt = f"""
             What commands or facts should be presented to each game object to update them?
             Consider the game state {self.game_state}
-            Consider the temporary descriptions the game engine computed for each player: {json.dumps(responses_to_successful_players)}
+            Consider the temporary descriptions the game engine computed for each player: {json.dumps(responses_to_players)}
             Consider the tools available to each gameobject: {json.dumps(dict_tools_per_gameobject)}.
             Also consider the global tools that any gameobject can use: {json.dumps(global_tools_dataset)}.
             You are not talking to the player right now; you are delivering updates to other gameobjects inside the game.
@@ -207,15 +207,14 @@ class EngineGameObject(GameObject):
                 tasks.append(asyncio.create_task(self.process_one_player_input(player_id, harmonized_input, deepcopy(self._my_history), deepcopy(self._my_history), deepcopy(self._my_history), self.game_state)))
             responses_to_players_list = await asyncio.gather(*tasks)
             responses_to_players = {}
-            responses_to_successful_players = {}
             for player_id, result in zip(dict_player_prompts.keys(), responses_to_players_list):
                 response, success = result
+                if not success:
+                    response = f'this player failed in their action.'
                 responses_to_players[player_id] = response
-                if success:
-                    responses_to_successful_players[player_id]=response
             
-            for _ in range(2):
-                await self.update_current_game_state(responses_to_successful_players)
+            for _ in range(1):
+                await self.update_current_game_state(responses_to_players)
             
             final_responses_prompt = (
                 f"Update the message to each player, considering the whole scenario. This is the earlier message to each player per player_id: {json.dumps(responses_to_players)}"
