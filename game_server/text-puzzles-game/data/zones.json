@@ -18,13 +18,19 @@
               "tools": {
                 "unlock": {
                   "name": "unlock",
-                  "human_readable_description": "Unlocks the door if a key is used",
-                  "function": "update is_locked to false if one of the params is key_001"
+                  "human_readable_description": "Unlocks the door if a key is used. Also adds subzone or zone to list of allowed_moves for anyone who opens the door",
+                  "function": "lambda self, target: update is_locked to false if one of the params is key_001. In addition, if one of the params is key_001, change the allowed_moves of the target to include (self.state.get(\"exit_leads_to\"))}). However! do not change target's zone or subzone yet."
                 },
                 "pass_through": {
                   "name": "pass_through",
-                  "human_readable_description": "Adds subzone or zone to list of allowed_moves for anyone who opens the door",
-                  "function": "lambda self, target: target.update_state({\"allowed_moves\": (self.state.get(\"exit_leads_to\"))}) if (self.state.get(\"exit_leads_to\")) in target.state.get(\"existing_places\", []) else 'It seems that place does not exist'",
+                  "human_readable_description": "Adds subzone or zone to list of allowed_moves to anyone who crosses the door's threshold (that is, the target)",
+                  "function": "lambda self, target: target.update_state({\"allowed_moves\": (self.state.get(\"exit_leads_to\"))}). In addition, change the target's subzone to self.state.get(\"exit_leads_to\") if (self.state.get(\"exit_leads_to\")) in target.state.get(\"existing_places\", []) else 'It seems that place does not exist'",
+                  "reviewed": true
+                },
+                "when_broken": {
+                  "name": "when_broken",
+                  "human_readable_description": "What happens when the door is broken",
+                  "function": "Do the same thing as the 'unlock' tool",
                   "reviewed": true
                 },
                 "break": {
@@ -84,12 +90,6 @@
                   "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
                   "reviewed": true
                 },
-                "drop": {
-                  "name": "drop",
-                  "human_readable_description": "Let go of this object",
-                  "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
-                  "reviewed": true
-                },
                 "be_grabbed": {
                   "name": "be_grabbed",
                   "human_readable_description": "Reflects that this item was picked up by a player",
@@ -122,12 +122,6 @@
                   "name": "transfer",
                   "human_readable_description": "Changes this gameobject from one inventory to another",
                   "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "drop": {
-                  "name": "drop",
-                  "human_readable_description": "Let go of this object",
-                  "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
                   "reviewed": true
                 },
                 "be_grabbed": {
@@ -205,7 +199,9 @@
                 "location_within_subzone": "scattered on tables",
                 "human_readable_description": "An empty wooden mug, slightly sticky from past use.",
                 "owner": "none",
-                "grabbed": false
+                "grabbed": false,
+                "durability": 100,
+                "is_broken": false
               },
               "tools": {
                 "fill": {
@@ -224,12 +220,6 @@
                   "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
                   "reviewed": true
                 },
-                "drop": {
-                  "name": "drop",
-                  "human_readable_description": "Let go of this object",
-                  "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
-                  "reviewed": true
-                },
                 "be_grabbed": {
                   "name": "be_grabbed",
                   "human_readable_description": "Reflects that this item was picked up by a player",
@@ -240,6 +230,12 @@
                   "name": "move_within_subzone",
                   "human_readable_description": "Moves the gamobject within the subzone",
                   "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
+                  "reviewed": true
+                },
+                "break": {
+                  "name": "break",
+                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
+                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
                   "reviewed": true
                 }
               }
@@ -250,7 +246,9 @@
                 "location_within_subzone": "scattered on tables",
                 "human_readable_description": "An empty wooden mug, slightly sticky from past use.",
                 "owner": "none",
-                "grabbed": false
+                "grabbed": false,
+                "durability": 100,
+                "is_broken": false
               },
               "tools": {
                 "fill": {
@@ -269,12 +267,6 @@
                   "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
                   "reviewed": true
                 },
-                "drop": {
-                  "name": "drop",
-                  "human_readable_description": "Let go of this object",
-                  "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
-                  "reviewed": true
-                },
                 "be_grabbed": {
                   "name": "be_grabbed",
                   "human_readable_description": "Reflects that this item was picked up by a player",
@@ -285,6 +277,12 @@
                   "name": "move_within_subzone",
                   "human_readable_description": "Moves the gamobject within the subzone",
                   "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
+                  "reviewed": true
+                },
+                "break": {
+                  "name": "break",
+                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
+                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
                   "reviewed": true
                 }
               }
@@ -337,12 +335,6 @@
                   "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
                   "reviewed": true
                 },
-                "drop": {
-                  "name": "drop",
-                  "human_readable_description": "Let go of this object",
-                  "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
-                  "reviewed": true
-                },
                 "be_grabbed": {
                   "name": "be_grabbed",
                   "human_readable_description": "Reflects that this item was picked up by a player",
@@ -361,27 +353,40 @@
               "initial_state": {
                 "can_talk": false,
                 "location_within_subzone": "slumped in a corner",
+                "current_dialogue_sentence": "",
+                "current_topic": "topic_001",
                 "topics": {
                   "topic_001": "Talk about ale and beer, nothing else",
                   "topic_002": "Mention the dumb taverner copies the same key for every door"
-                },
-                "current_topic": "topic_001"
+                }
               },
               "tools": {
                 "wake": {
                   "name": "wake",
                   "human_readable_description": "Tries to rouse the patron",
-                  "function": "lambda self: self.update_state({\"can_talk\": True, \"human_readable_description\": \"A bleary-eyed patron, now slightly more alert\"}) if the patron is offered a drink else return 'the drunkard rambles, dreaming of more ale.' "
+                  "function": "lambda self: self.update_state({\"can_talk\": True}) if the patron is offered a drink else return 'the drunkard rambles, dreaming of more ale.' "
                 },
                 "change_topics": {
                   "name": "change_topics",
                   "human_readable_description": "Gets the patron to stop discussing drinks and talk about something else",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['human_readable_description'] to reflect the new focus, like 'A bleary-eyed patron, now muttering about keys and locks.' Return a short transition message, such as 'The patron slurs, \u201cEnough about ale\u2014lemme tell ya somethin\u2019 else\u2026\u201d' flavored to match his drunken state. If self.state['can_talk'] is False, return a rejection like 'The patron\u2019s too far gone to switch subjects\u2014snoring or slurring nonsense.'"
+                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002'.  If self.state['can_talk'] is False, return a rejection like 'The patron\u2019s too far gone to switch subjects\u2014snoring or slurring nonsense.' Success in changing to topic_002 is defined at random."
                 },
                 "talk": {
                   "name": "talk",
-                  "human_readable_description": "Speaks a random phrase from the current topic",
-                  "function": "lambda self, player: import random; return random.choice(self.state['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.'"
+                  "human_readable_description": "Speaks a phrase from the current topic",
+                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.' You also instead return a phrase from extra_data['topics'][self.state['current_topic']] that's most adequate, as long as the sentence is in extra_data['topics'][self.state['current_topic']]",
+                  "extra_data": {
+                    "topics": {
+                      "topic_001": [
+                        "Bring me another mug!",
+                        "Ale is good, but have you tried beer?"
+                      ],
+                      "topic_002": [
+                        "Alright, lad, let me tell a secret: the taverner is dumb",
+                        "He's so dumb he keeps the same lock for every door. And lazy, too!"
+                      ]
+                    }
+                  }
                 }
               }
             },
@@ -389,45 +394,45 @@
               "initial_state": {
                 "can_talk": true,
                 "location_within_subzone": "behind the bar counter",
-                "last_sentence_said": "",
+                "current_dialogue_sentence": "Hello! Finally sober, huh?",
                 "current_topic": "topic_001"
               },
               "tools": {
                 "bribe_for_information": {
                   "name": "bribe_for_information",
                   "human_readable_description": "Asks the bartender for more information",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['human_readable_description'] to reflect the new focus if the bartender is offered monetary compensation for the information (at least 1 gold) else return 'I suppose I could discuss this with a wealthy patron...'"
+                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the bartender is offered monetary compensation for the information (at least 1 gold) else return 'I suppose I could discuss this with a wealthy patron...'"
                 },
                 "change_to_slave_trading_topic": {
                   "name": "change_to_slave_trading_topic",
                   "human_readable_description": "Gets the bartender to talk about a more confidencial subject, which is the bartender's slaves to sell",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' if the player shows open enough and sympathetic to the ideas of topic_002"
+                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the player shows open enough and sympathetic to the ideas of topic_002"
                 },
                 "talk": {
                   "name": "talk",
-                  "human_readable_description": "Speaks a random phrase from the current topic",
-                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.'",
+                  "human_readable_description": "Speaks a phrase from the current topic",
+                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.' Return a phrase from extra_data['topics'][self.state['current_topic']] that's most adequate.",
                   "extra_data": {
-                      "topics": {
-                          "topic_001": [
-                            "Last night, a customer got so drunk he couldn\u2019t walk straight.",
-                            "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
-                            "Some of these fools blabber secrets when they\u2019re deep in their cups.",
-                            "A coin or two might loosen my tongue about what I\u2019ve heard."
-                          ],
-                          "topic_002": [
-                            "The new ban on slave trading is ruining good business around here.",
-                            "I think it\u2019s unfair they\u2019ve outlawed a man\u2019s right to trade slaves.",
-                            "Folks used to make decent gold dealing in slaves, back in the day.",
-                            "I steer clear of that trade now, though\u2014not my concern anymore."
-                          ],
-                          "topic_003": [
-                            "I\u2019ve got a few slaves hidden away for someone who\u2019s not too picky.",
-                            "If you\u2019re quiet about it, I could sell you a sturdy worker.",
-                            "My slaves are strong and won\u2019t cause you any trouble.",
-                            "This stays between us\u2014don\u2019t go spreading word of my stock."
-                          ]
-                        }
+                    "topics": {
+                      "topic_001": [
+                        "Last night, a customer got so drunk he couldn\u2019t walk straight.",
+                        "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
+                        "Some of these fools blabber secrets when they\u2019re deep in their cups.",
+                        "If you want to get me talkin', a coin or two might loosen my tongue about what I\u2019ve heard."
+                      ],
+                      "topic_002": [
+                        "The new ban on slave trading is ruining good business around here.",
+                        "I think it\u2019s unfair they\u2019ve outlawed a man\u2019s right to trade slaves.",
+                        "Folks used to make decent gold dealing in slaves, back in the day.",
+                        "I steer clear of that trade now, though\u2014not my concern anymore."
+                      ],
+                      "topic_003": [
+                        "I\u2019ve got a few slaves hidden away for someone who\u2019s not too picky.",
+                        "If you\u2019re quiet about it, I could sell you a sturdy worker.",
+                        "My slaves are strong and won\u2019t cause you any trouble.",
+                        "This stays between us\u2014don\u2019t go spreading word of my stock."
+                      ]
+                    }
                   }
                 }
               }

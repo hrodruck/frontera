@@ -37,12 +37,6 @@
                 "reviewed": true
             },
             {
-                "name": "drop",
-                "human_readable_description": "Let go of this object",
-                "function": "lambda self: self.update_state({\"owner\":\"none\", \"location_within_subzone\": <some new location that reflects the item was dropped>, grabbed:False })",
-                "reviewed": true
-            },
-            {
                 "name": "be_grabbed",
                 "human_readable_description": "Reflects that this item was picked up by a player",
                 "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",

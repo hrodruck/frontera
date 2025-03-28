@@ -36,7 +36,7 @@ async def handle_move(game, player_id, args, current_zone, current_subzone):
                             await game.engine_game_objects[current_zone][new_subzone].add_active_game_object(item_name, item_object)
                             item_object = game.game_objects[current_zone][current_subzone].pop(item_name)
                             game.game_objects[current_zone][new_subzone][item_name] = item_object
-                            item_object.update_state({"zone":current_zone, "subzone":new_subzone})
+                            await item_object.update_state({"zone":current_zone, "subzone":new_subzone})
                         except Exception as e:
                             print (e)
                             print ("could not move item with item key {item_name}")

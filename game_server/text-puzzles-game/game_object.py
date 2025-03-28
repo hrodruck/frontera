@@ -40,6 +40,7 @@ class GameObject:
         self.comms_backbone = BackboneComms()
         self.progress_queue = ''
         self._my_history = []
+        self._checkpoint_len = 0
         self.progress_lock = asyncio.Lock()
         self.processing_lock = asyncio.Lock()
         self.comms_backbone.model_string = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
@@ -70,15 +71,27 @@ class GameObject:
             return self.state
         """Helper method to safely update the state dictionary."""
         print (f'\n== called update_state==')
-        print (f'{updates=}\n')
-        sanitized_updates = {k:v for k, v in updates.items() if k in self.state.keys()}
-        print (f'{sanitized_updates=}\n')
+        print (f'{updates=}\n')        
         async with self.processing_lock:
             try:
+                sanitized_updates = {k:v for k, v in updates.items() if k in self.state.keys()}
+                rejected_updates = {k:v for k, v in updates.items() if k not in self.state.keys()}
+                print (f'{sanitized_updates=}\n')
+                print (f'{rejected_updates=}\n')
                 self.state.update(sanitized_updates)
             except Exception as e:
                 print(e)
-        return self.state
+            finally:
+                if not sanitized_updates:
+                    sanitized_updates = 'No update'
+                else:
+                    sanitized_updates = json.dumps(sanitized_updates)
+                return_message = f"These updates were processed for gameobject {self.object_name}: {sanitized_updates}"
+                if rejected_updates:
+                    rejected_updates = json.dumps(rejected_updates)
+                    return_message += f"\nThese updates were rejected by gameobject {self.object_name}: {rejected_updates}"
+                return return_message
+                
     
     
     async def get_reviewed_tools(self):

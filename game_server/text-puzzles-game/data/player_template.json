@@ -40,6 +40,12 @@
             "description": "Reduces gold in exchange of some service or product",
             "function": "lambda self, amount=0.1: self.update_state({\"gold\": self.state.get(\"gold\" - amount)})",
             "reviewed": true
+        },
+        "discard": {
+            "name": "discard",
+            "description": "Removes an item from the inventory",
+            "function": "lambda self, items: update the inventory to remove the discarded item(s) from the inventory list",
+            "reviewed": true
         }
     }
 }
