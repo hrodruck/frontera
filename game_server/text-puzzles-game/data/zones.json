@@ -9,133 +9,42 @@
           "objects": {
             "door": {
               "initial_state": {
-                "is_locked": true,
-                "exit_leads_to": "the-ravenous-raven",
-                "human_readable_description": "A large, old wooden door with an inconspicuous keyhole.",
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "unlock": {
-                  "name": "unlock",
-                  "human_readable_description": "Unlocks the door if a key is used. Also adds subzone or zone to list of allowed_moves for anyone who opens the door",
-                  "function": "lambda self, target: update is_locked to false if one of the params is key_001. In addition, if one of the params is key_001, change the allowed_moves of the target to include (self.state.get(\"exit_leads_to\"))}). However! do not change target's zone or subzone yet."
-                },
-                "pass_through": {
-                  "name": "pass_through",
-                  "human_readable_description": "Adds subzone or zone to list of allowed_moves to anyone who crosses the door's threshold (that is, the target)",
-                  "function": "lambda self, target: target.update_state({\"allowed_moves\": (self.state.get(\"exit_leads_to\"))}). In addition, change the target's subzone to self.state.get(\"exit_leads_to\") if (self.state.get(\"exit_leads_to\")) in target.state.get(\"existing_places\", []) else 'It seems that place does not exist'",
-                  "reviewed": true
-                },
-                "when_broken": {
-                  "name": "when_broken",
-                  "human_readable_description": "What happens when the door is broken",
-                  "function": "Do the same thing as the 'unlock' tool",
-                  "reviewed": true
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "This is a large, old wooden door with an inconspicuous keyhole. It’s currently locked and leads to The Ravenous Raven tavern. The door is sturdy, showing no signs of damage."
               }
             },
             "doormat": {
               "initial_state": {
-                "is_flammable": true,
-                "is_burned": false,
-                "location_within_subzone": "Next to the door",
-                "human_readable_description": "A flammable doormat",
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "burn": {
-                  "name": "burn",
-                  "human_readable_description": "Sets the doormat on fire if exposed to a flame",
-                  "function": "lambda self, flame_source=None: Here\u2019s what happens when you try to burn the doormat. Only if a flame_source is present and it is indeed a lit source of fire and it directly exposes the doormat to flame\u2014meaning the flame is close enough to touch or nearly touch the doormat\u2014then update the doormat\u2019s state so that it is burned, and it becomes a pile of ash in its description, plus the doormat breaks completely. Otherwise, if no flame_source is provided, or it isn\u2019t lit, or it isn\u2019t close enough to directly affect the doormat, return a failure notice saying the doormat isn\u2019t exposed to a flame sufficient to burn it."
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "A flammable doormat sits next to the door. It’s intact and hasn’t been burned or broken."
               }
             },
             "torch": {
               "initial_state": {
-                "is_lit": true,
-                "location_within_subzone": "mounted on wall",
-                "fuel_level": 100,
-                "human_readable_description": "A torch, burning brightly",
-                "owner": "none",
-                "grabbed": false
-              },
-              "tools": {
-                "snuff": {
-                  "name": "snuff",
-                  "human_readable_description": "Puts out the torch",
-                  "function": "lambda self: self.update_state({\"is_lit\": False})"
-                },
-                "consume_fuel": {
-                  "name": "consume_fuel",
-                  "human_readable_description": "Reduces fuel level, deactivates object if depleted",
-                  "function": "lambda self, amount: self.update_state({\"fuel_level\": self.state['fuel_level'] - amount}) if 'fuel_level' in self.state and self.state['fuel_level'] > amount else self.update_state({\"fuel_level\": 0, \"is_lit\": False}) if 'fuel_level' in self.state else {'success': False, 'message': 'Fuel level not found'}"
-                },
-                "transfer": {
-                  "name": "transfer",
-                  "human_readable_description": "Changes this gameobject from one inventory to another",
-                  "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "be_grabbed": {
-                  "name": "be_grabbed",
-                  "human_readable_description": "Reflects that this item was picked up by a player",
-                  "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
-                  "reviewed": true
-                },
-                "move_within_subzone": {
-                  "name": "move_within_subzone",
-                  "human_readable_description": "Moves the gamobject within the subzone",
-                  "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-                  "reviewed": true
-                }
+                "state": "A torch burns brightly, mounted on the wall. It’s full of fuel and hasn’t been claimed by anyone yet."
               }
             },
             "key_001": {
               "initial_state": {
-                "is_hidden": true,
-                "location_within_subzone": "under_doormat",
-                "human_readable_description": "This is key_001.",
-                "owner": "none",
-                "grabbed": false
-              },
-              "tools": {
-                "reveal": {
-                  "name": "reveal",
-                  "human_readable_description": "Makes the key visible and available",
-                  "function": "lambda self: self.update_state({\"is_hidden\": False})"
-                },
-                "transfer": {
-                  "name": "transfer",
-                  "human_readable_description": "Changes this gameobject from one inventory to another",
-                  "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "be_grabbed": {
-                  "name": "be_grabbed",
-                  "human_readable_description": "Reflects that this item was picked up by a player",
-                  "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
-                  "reviewed": true
-                },
-                "move_within_subzone": {
-                  "name": "move_within_subzone",
-                  "human_readable_description": "Moves the gamobject within the subzone",
-                  "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-                  "reviewed": true
-                }
+                "state": "This is a key hidden under the doormat. It hasn’t been picked up or claimed by anyone."
+              }
+            },
+            "cracked-stone-wall": {
+              "initial_state": {
+                "state": "A cracked stone wall stands at the back of the cell, weakened by time and neglect. It’s still holding strong and hides a stash of old bones within."
+              }
+            },
+            "stash-of-old-bones": {
+              "initial_state": {
+                "state": "A pile of dusty, brittle bones lies hidden behind the cracked stone wall, remnants of a forgotten prisoner. Something valuable might be buried within."
+              }
+            },
+            "hidden-gold": {
+              "initial_state": {
+                "state": "A small pile of 40 tarnished but valuable gold coins is concealed beneath the stash of old bones. It remains unclaimed and untouched."
+              }
+            },
+            "rusty-shackles": {
+              "initial_state": {
+                "state": "Rusty shackles are bolted to the wall, a grim reminder of past captives."
               }
             }
           }
@@ -146,295 +55,52 @@
           "objects": {
             "prison-door": {
               "initial_state": {
-                "is_locked": true,
-                "exit_leads_to": "the-ravenous-raven",
-                "human_readable_description": "A door you don\u2019t feel like opening, leading back to the grim prison-vault."
-              },
-              "tools": {
-                "touch": {
-                  "name": "touch",
-                  "human_readable_description": "What happens if you touch the tavern door",
-                  "function": "lambda self, target: 'Nothing much happens, but the target doesn\u2019t feel like going through the door anymore'"
-                }
+                "state": "This door, which you don’t feel like opening, is locked and leads back to the grim prison-vault."
               }
             },
             "barrel-of-ale": {
               "initial_state": {
-                "is_full": true,
-                "is_empty": false,
-                "volume": 50,
-                "contents": "ale",
-                "location_within_subzone": "behind the bar",
-                "human_readable_description": "A sturdy wooden barrel brimming with 50 liters of frothy ale.",
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "tap": {
-                  "name": "tap",
-                  "human_readable_description": "Draws a mug of ale (1 liter) from the barrel",
-                  "function": "lambda self: self.update_state({\"volume\": self.state[\"volume\"] - 1, \"is_full\": False, \"is_empty\": True if (self.state[\"volume\"] - 1 <= 0) else False, \"human_readable_description\": f\"A sturdy wooden barrel containing {self.state['volume'] - 1} liters of frothy ale\" if (self.state['volume'] - 1 > 0) else \"A sturdy wooden barrel, now empty\"}) if self.state['volume'] > 0 else 'The barrel is already empty'"
-                },
-                "smash": {
-                  "name": "smash",
-                  "human_readable_description": "Breaks the barrel, spilling all its contents",
-                  "function": "lambda self: self.update_state({\"is_full\": False, \"is_empty\": True, \"volume\": 0, \"human_readable_description\": \"A broken barrel, its ale soaking the floor\"})"
-                },
-                "check_volume": {
-                  "name": "check_volume",
-                  "human_readable_description": "Checks how much ale is left in the barrel",
-                  "function": "lambda self: f'The barrel contains {self.state[\"volume\"]} liters of ale' if self.state['volume'] > 0 else 'The barrel is empty'"
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "A sturdy wooden barrel behind the bar is brimming with 50 liters of frothy ale. It’s in perfect condition, ready to be tapped."
               }
             },
             "wooden-mug_001": {
               "initial_state": {
-                "is_filled": false,
-                "location_within_subzone": "scattered on tables",
-                "human_readable_description": "An empty wooden mug, slightly sticky from past use.",
-                "owner": "none",
-                "grabbed": false,
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "fill": {
-                  "name": "fill",
-                  "human_readable_description": "Fills the mug with ale if near the barrel",
-                  "function": "lambda self, source: self.update_state({\"is_filled\": True, \"human_readable_description\": \"A wooden mug filled with frothy ale\"}) if source.state.get(\"contents\") == \"ale\" and source.state.get(\"is_full\") else 'The barrel is empty or missing'"
-                },
-                "drink": {
-                  "name": "drink",
-                  "human_readable_description": "Drinks the contents of the mug",
-                  "function": "lambda self: self.update_state({\"is_filled\": False, \"human_readable_description\": \"An empty wooden mug, slightly sticky from past use\"}) if self.state['is_filled'] else 'The mug is already empty'"
-                },
-                "transfer": {
-                  "name": "transfer",
-                  "human_readable_description": "Changes this gameobject from one inventory to another",
-                  "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "be_grabbed": {
-                  "name": "be_grabbed",
-                  "human_readable_description": "Reflects that this item was picked up by a player",
-                  "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
-                  "reviewed": true
-                },
-                "move_within_subzone": {
-                  "name": "move_within_subzone",
-                  "human_readable_description": "Moves the gamobject within the subzone",
-                  "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-                  "reviewed": true
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "An empty wooden mug, slightly sticky from past use, sits scattered on a table. It’s unclaimed and undamaged."
               }
             },
             "wooden-mug_002": {
               "initial_state": {
-                "is_filled": false,
-                "location_within_subzone": "scattered on tables",
-                "human_readable_description": "An empty wooden mug, slightly sticky from past use.",
-                "owner": "none",
-                "grabbed": false,
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "fill": {
-                  "name": "fill",
-                  "human_readable_description": "Fills the mug with ale if near the barrel",
-                  "function": "lambda self, source: self.update_state({\"is_filled\": True, \"human_readable_description\": \"A wooden mug filled with frothy ale\"}) if source.state.get(\"contents\") == \"ale\" and source.state.get(\"is_full\") else 'The barrel is empty or missing'"
-                },
-                "drink": {
-                  "name": "drink",
-                  "human_readable_description": "Drinks the contents of the mug",
-                  "function": "lambda self: self.update_state({\"is_filled\": False, \"human_readable_description\": \"An empty wooden mug, slightly sticky from past use\"}) if self.state['is_filled'] else 'The mug is already empty'"
-                },
-                "transfer": {
-                  "name": "transfer",
-                  "human_readable_description": "Changes this gameobject from one inventory to another",
-                  "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "be_grabbed": {
-                  "name": "be_grabbed",
-                  "human_readable_description": "Reflects that this item was picked up by a player",
-                  "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
-                  "reviewed": true
-                },
-                "move_within_subzone": {
-                  "name": "move_within_subzone",
-                  "human_readable_description": "Moves the gamobject within the subzone",
-                  "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-                  "reviewed": true
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "Another empty wooden mug, slightly sticky from past use, rests scattered on a table. It’s unclaimed and in good shape."
               }
             },
             "tavern-table": {
               "initial_state": {
-                "is_sturdy": true,
-                "location_within_subzone": "center of the room",
-                "human_readable_description": "A heavy oak table scarred from years of use.",
-                "durability": 100,
-                "is_broken": false
-              },
-              "tools": {
-                "flip": {
-                  "name": "flip",
-                  "human_readable_description": "Flips the table in a fit of rage or revelry",
-                  "function": "lambda self: self.update_state({\"is_sturdy\": False, \"human_readable_description\": \"A flipped oak table, now a mess of splinters\"})"
-                },
-                "break": {
-                  "name": "break",
-                  "human_readable_description": "Reduces durability and marks object as broken if the durability hits zero",
-                  "function": "lambda self, amount=1: self.update_state({\"durability\": self.state[\"durability\"] - amount, \"is_broken\": True if self.state[\"durability\"] <= amount else False})",
-                  "reviewed": true
-                }
+                "state": "A heavy oak table, scarred from years of use, stands sturdy in the center of the room. It’s still intact."
               }
             },
             "flickering-lantern": {
               "initial_state": {
-                "is_lit": true,
-                "fuel_level": 50,
-                "location_within_subzone": "hanging from the ceiling",
-                "human_readable_description": "A rusty lantern casting a warm, flickering glow.",
-                "owner": "none",
-                "grabbed": false
-              },
-              "tools": {
-                "snuff": {
-                  "name": "snuff",
-                  "human_readable_description": "Puts out the lantern",
-                  "function": "lambda self: self.update_state({\"is_lit\": False, \"human_readable_description\": \"A rusty lantern, now dark and cold\"})"
-                },
-                "refill": {
-                  "name": "refill",
-                  "human_readable_description": "Refills the lantern\u2019s oil",
-                  "function": "lambda self: self.update_state({\"fuel_level\": 100}) if self.state['is_lit'] == False else 'You can\u2019t refill it while it\u2019s burning'"
-                },
-                "transfer": {
-                  "name": "transfer",
-                  "human_readable_description": "Changes this gameobject from one inventory to another",
-                  "function": "lambda self, new_player: If self.state['owner'] is not 'none', update self.state so 'owner' becomes new_player and 'location_within_subzone' changes to 'in the inventory of [new_player]'. Return a message like '[self] has been handed over to [new_player].' If self.state['owner'] is 'none', return 'This object isn\u2019t owned by anyone yet\u2014nothing to transfer!'",
-                  "reviewed": true
-                },
-                "be_grabbed": {
-                  "name": "be_grabbed",
-                  "human_readable_description": "Reflects that this item was picked up by a player",
-                  "function": "lambda self, new_player: self.update_state({\"grabbed\":\"True\"},{\"location_within_subzone\": <the inventory of the new player>}, {\"owner\": <the new player>}) if grabbed is False else None ",
-                  "reviewed": true
-                },
-                "move_within_subzone": {
-                  "name": "move_within_subzone",
-                  "human_readable_description": "Moves the gamobject within the subzone",
-                  "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-                  "reviewed": true
-                }
+                "state": "A rusty lantern hangs from the ceiling, casting a warm, flickering glow. It’s half full of oil and belongs to no one yet."
               }
             },
             "drunken-patron": {
               "initial_state": {
-                "can_talk": false,
-                "location_within_subzone": "slumped in a corner",
-                "current_dialogue_sentence": "",
-                "current_topic": "topic_001",
-                "topics": {
-                  "topic_001": "Talk about ale and beer, nothing else",
-                  "topic_002": "Mention the dumb taverner copies the same key for every door"
-                }
-              },
-              "tools": {
-                "wake": {
-                  "name": "wake",
-                  "human_readable_description": "Tries to rouse the patron",
-                  "function": "lambda self: self.update_state({\"can_talk\": True}) if the patron is offered a drink else return 'the drunkard rambles, dreaming of more ale.' "
-                },
-                "change_topics": {
-                  "name": "change_topics",
-                  "human_readable_description": "Gets the patron to stop discussing drinks and talk about something else",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002'.  If self.state['can_talk'] is False, return a rejection like 'The patron\u2019s too far gone to switch subjects\u2014snoring or slurring nonsense.' Success in changing to topic_002 is defined at random."
-                },
-                "talk": {
-                  "name": "talk",
-                  "human_readable_description": "Speaks a phrase from the current topic",
-                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.' You also instead return a phrase from extra_data['topics'][self.state['current_topic']] that's most adequate, as long as the sentence is in extra_data['topics'][self.state['current_topic']]",
-                  "extra_data": {
-                    "topics": {
-                      "topic_001": [
-                        "Bring me another mug!",
-                        "Ale is good, but have you tried beer?"
-                      ],
-                      "topic_002": [
-                        "Alright, lad, let me tell a secret: the taverner is dumb",
-                        "He's so dumb he keeps the same lock for every door. And lazy, too!"
-                      ]
-                    }
-                  }
-                }
+                "state": "A patron is slumped in a corner, too drunk to talk. He’s fixated on ale and beer, mumbling about nothing else."
               }
             },
             "taverner": {
               "initial_state": {
-                "can_talk": true,
-                "location_within_subzone": "behind the bar counter",
-                "current_dialogue_sentence": "Hello! Finally sober, huh?",
-                "current_topic": "topic_001"
-              },
-              "tools": {
-                "bribe_for_information": {
-                  "name": "bribe_for_information",
-                  "human_readable_description": "Asks the bartender for more information",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the bartender is offered monetary compensation for the information (at least 1 gold) else return 'I suppose I could discuss this with a wealthy patron...'"
-                },
-                "change_to_slave_trading_topic": {
-                  "name": "change_to_slave_trading_topic",
-                  "human_readable_description": "Gets the bartender to talk about a more confidencial subject, which is the bartender's slaves to sell",
-                  "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the player shows open enough and sympathetic to the ideas of topic_002"
-                },
-                "talk": {
-                  "name": "talk",
-                  "human_readable_description": "Speaks a phrase from the current topic",
-                  "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.' Return a phrase from extra_data['topics'][self.state['current_topic']] that's most adequate.",
-                  "extra_data": {
-                    "topics": {
-                      "topic_001": [
-                        "Last night, a customer got so drunk he couldn\u2019t walk straight.",
-                        "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
-                        "Some of these fools blabber secrets when they\u2019re deep in their cups.",
-                        "If you want to get me talkin', a coin or two might loosen my tongue about what I\u2019ve heard."
-                      ],
-                      "topic_002": [
-                        "The new ban on slave trading is ruining good business around here.",
-                        "I think it\u2019s unfair they\u2019ve outlawed a man\u2019s right to trade slaves.",
-                        "Folks used to make decent gold dealing in slaves, back in the day.",
-                        "I steer clear of that trade now, though\u2014not my concern anymore."
-                      ],
-                      "topic_003": [
-                        "I\u2019ve got a few slaves hidden away for someone who\u2019s not too picky.",
-                        "If you\u2019re quiet about it, I could sell you a sturdy worker.",
-                        "My slaves are strong and won\u2019t cause you any trouble.",
-                        "This stays between us\u2014don\u2019t go spreading word of my stock."
-                      ]
-                    }
-                  }
-                }
+                "state": "The taverner stands behind the bar counter, ready to chat. He greets you with, 'Hello! Finally sober, huh?' and seems open to casual conversation."
+              }
+            },
+            "notice-board": {
+              "initial_state": {
+                "state": "A weathered wooden board near the entrance holds a single parchment pinned to it."
+              }
+            },
+            "hidden-trapdoor": {
+              "initial_state": {
+                "state": "A concealed trapdoor lies under the tavern-table, locked and barely noticeable beneath the grime. It leads somewhere within The Ravenous Raven."
               }
             }
           }

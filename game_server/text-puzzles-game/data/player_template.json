@@ -1,51 +1,14 @@
 {
-    "human_readable_description": "A player avatar, full of physical characteristics. A regular, able adventurer.",
     "initial_state": {
         "is_injured": false,
+        "breath": 10,
         "gold": 10,
         "inventory":[],
         "zone": "cinthria",
         "subzone": "prison-vault",
         "allowed_moves": ["prison-vault"],
         "location_within_subzone":"nowhere in particular",
-        "existing_places": ["cinthria", "prison-vault", "town-hall", "temple-in-cinthria", "market-square"]
-    },
-    "initial_tools": {
-        "move_to_subzone": {
-            "name": "move_to_subzone",
-            "human_readable_description": "Moves the player to a specified subzone within the current zone, if it is in the allowed_moves list",
-            "function": "lambda self, subzone: self.update_state({\"subzone\": subzone}) if 'allowed_moves' in self.state and subzone in self.state['allowed_moves'] else {'success': False, 'message': 'Subzone not allowed'}",
-            "reviewed": true
-        },
-        "modify_existing_places": {
-            "name": "modify_existing_places",
-            "human_readable_description": "Attemtps to modify existing_places list",
-            "function": "lambda self, new_list: {'success': False, 'message': 'Cannot change existing_places!'}",
-            "reviewed": true
-        },
-        "move_within_subzone": {
-            "name": "move_within_subzone",
-            "human_readable_description": "Moves the player within the subzone",
-            "function": "lambda self, new_location: self.update_state({\"location_within_subzone\": new_location})",
-            "reviewed": true
-        },
-        "pick_up": {
-            "name": "pick_up",
-            "description": "Adds an item to the player's inventory",
-            "function": "lambda self, item: self.update_state({\"inventory\": self.state.get(\"inventory\", []) + [item]})",
-            "reviewed": true
-        },
-        "pay": {
-            "name": "pay",
-            "description": "Reduces gold in exchange of some service or product",
-            "function": "lambda self, amount=0.1: self.update_state({\"gold\": self.state.get(\"gold\" - amount)})",
-            "reviewed": true
-        },
-        "discard": {
-            "name": "discard",
-            "description": "Removes an item from the inventory",
-            "function": "lambda self, items: update the inventory to remove the discarded item(s) from the inventory list",
-            "reviewed": true
-        }
+        "existing_places": ["cinthria", "prison-vault", "town-hall", "temple-in-cinthria", "market-square"],
+        "state": "A player avatar, full of physical characteristics. A regular, able adventurer."
     }
 }

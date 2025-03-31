@@ -67,7 +67,6 @@ class Game:
             'Do not disappear after being used. '
             'The object you simulate is a <object_name>. '
             'Your initial state is <my_state>. '
-            'Your available tools are <my_tools>. '
             'Important! Minimize changes when updating your state when possible. '
             'When queried, use your state as context. When updating, only use your tools or propose new ones. '
             'Only use your tools when clearly necessary.'
@@ -76,22 +75,15 @@ class Game:
         for key in self.scene_objects_states[zone][subzone].keys():
             self.game_objects[zone][subzone][key] = GameObject(
                 initial_state=copy.deepcopy(self.scene_objects_states[zone][subzone][key]),
-                initial_tools=copy.deepcopy(self.scene_objects_tools[zone][subzone][key])
             )
             self.game_objects[zone][subzone][key].object_name = key
             applied_template = (
                 game_object_template
                 .replace('<object_name>', key)
                 .replace('<my_state>', json.dumps(self.scene_objects_states[zone][subzone][key]))
-                .replace('<my_tools>', json.dumps({k: {k2: v2 for k2, v2 in v.items() if k2 != 'function'} for k, v in self.scene_objects_tools[zone][subzone][key].items()}))
             )
             self.game_objects[zone][subzone][key].set_system_message(applied_template)
             
-            '''
-            await self.game_objects[zone][subzone][key].process_game_input(
-                f'This is your current state: "{json.dumps(self.scene_objects_states[zone][subzone][key])}"'
-            )
-            '''
             
 
     async def initialize_engine_simulator(self, zone, subzone):
@@ -266,16 +258,14 @@ class Game:
         # Initialize the player body object if it doesn’t exist
         if body_key not in self.game_objects[zone][subzone]:
             self.game_objects[zone][subzone][body_key] = GameObject(
-                initial_state=template_data["initial_state"],
-                initial_tools=template_data["initial_tools"]
+                initial_state=template_data["initial_state"]
             )
             self.game_objects[zone][subzone][body_key].object_name = body_key
             body_prompt = (
                 player_body_template
                 .replace('<object_name>', body_key)
-                .replace('<my_description>', template_data["human_readable_description"])
+                #.replace('<my_description>', template_data["human_readable_description"])
                 .replace('<my_state>', json.dumps(template_data["initial_state"]))
-                .replace('<my_tools>', json.dumps(template_data["initial_tools"]))
             )
             self.game_objects[zone][subzone][body_key].set_system_message(body_prompt)
             '''

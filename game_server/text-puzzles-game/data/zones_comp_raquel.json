@@ -256,27 +256,28 @@
                         "bribe_for_information": {
                             "name": "bribe_for_information",
                             "human_readable_description": "Asks the bartender for more information",
-                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['current_dialogue_sentence'] to 'Well, now I suppose we can discuss more freely' if the player pays for the information (at least 1 gold) else paraphrase this sentence: 'No gold, no deal'"
+                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_002' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the bartender is offered monetary compensation for the information (at least 1 gold) else return 'I suppose I could discuss this with a wealthy patron...'"
                         },
-                        "talk_openly_about_slaves": {
-                            "name": "talk_openly_about_slaves",
-                            "human_readable_description": "Asks the taverner for more information on slaves",
-                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' and adjust self.state['current_dialogue_sentence'] to 'you seem reasonable enough, hear me out on this' if the player shows sympathy or support for the slave traders. Otherwise, if the player shows no sympathy, keep on topic_002"
+                        "change_to_slave_trading_topic": {
+                            "name": "change_to_slave_trading_topic",
+                            "human_readable_description": "Gets the bartender to talk about a more confidencial subject, which is the bartender's slaves to sell",
+                            "function": "lambda self: If self.state['can_talk'] is True, update self.state['current_topic'] to 'topic_003' and adjust self.state['current_dialogue_sentence'] to reflect the new focus if the player shows open enough and sympathetic to the ideas of topic_002"
                         },
                         "talk": {
                           "name": "talk",
                           "human_readable_description": "Speaks a phrase from the current topic",
-                          "function": "lambda self, target: Paraphrase one of the phrases in extra_data[topics[self.current_topic]]. Choose the phrase the is most adequate given context. If you don't know about something, paraphrase 'I don't know'",
+                          "function": "lambda self, player: import random; return random.choice(extra_data['topics'][self.state['current_topic']]) if self.state['can_talk'] is True else 'Can't chat right now.' Return a phrase from extra_data['topics'][self.state['current_topic']] that's most adequate.",
                           "extra_data": {
                               "topics": {
                                   "topic_001": [
-                                    "Today, you got so drunk he couldn\u2019t walk straight.",
-                                    "I had to lock you in the storeroom to stop you from smashing my mugs.",
+                                    "Last night, a customer got so drunk he couldn\u2019t walk straight.",
+                                    "I locked a rowdy drunk in the storeroom to stop him smashing my mugs.",
                                     "Some of these fools blabber secrets when they\u2019re deep in their cups.",
                                     "If you want to get me talkin', a coin or two might loosen my tongue about what I\u2019ve heard."
                                   ],
                                   "topic_002": [
                                     "The new ban on slave trading is ruining good business around here.",
+                                    "I think it\u2019s unfair they\u2019ve outlawed a man\u2019s right to trade slaves.",
                                     "Folks used to make decent gold dealing in slaves, back in the day.",
                                     "I steer clear of that trade now, though\u2014not my concern anymore."
                                   ],
@@ -291,6 +292,42 @@
                         }
                     }
                 }
+            }
+        },
+        "WC": {
+            "short_description": "An unwelcoming place",
+            "long_description": "A dirty, smelly bathroom emanating intense heat from the excess gases stored there. It looks like it was only cleaned when it was built",
+            "objects": {,
+              "hole": {
+                "initial_state": {
+                  "human_readable_description": "a hole that serves as a toilet."
+                },
+                "tools": {
+                  "stink": {
+                    "name": "stink",
+                    "human_readable_description": "it releases hot, smelly gas vapor",
+                    "function": "lambda self, target: the steam slowly suffocates the target. reduce the target's breath by 1"
+                  },
+                  "explode": {
+                    "name": "explode",
+                    "human_readable_description": "explodes if exposed to a naked flame",
+                    "function": "lambda self, target: explodes and injures everything around it if near a flame of fire"
+                  }
+                }
+              },
+              "hang-torches": {
+                "initial_state": {
+                    "contains-torch": false,
+                  "human_readable_description": "rusty iron support where you can fit a torch."
+                },
+                "tools": {
+                  "hang-torch": {
+                    "name": "hang-torch",
+                    "human_readable_description": "remove the torch from player and hangs it on the wall",
+                    "function": "lambda self, target: remove torch from target's inventory and set. self. contains-torch to true if target's invetory contains a torch"
+                  }
+                },
+                "components": ["breakable"]
             }
         },
         "town-hall": {

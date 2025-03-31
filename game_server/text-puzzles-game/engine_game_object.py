@@ -17,6 +17,14 @@ class ToolList(RootModel):
     def items(self):
         return self.root.items()
 
+class SimpleObject(BaseModel):
+    state: str
+class AllObjects(RootModel):
+    root: Dict[str, List[SimpleObject]]
+    
+    def items(self):
+        return self.root.items()
+
 class EngineGameObject(GameObject):
 
     def __init__(self):
@@ -85,70 +93,23 @@ class EngineGameObject(GameObject):
             return f"update from {main_gameobject.object_name}: {up_main}\n\nupdate from {target_gameobject.object_name}: {up_target}"
 
     async def update_current_game_state(self, responses_to_players, player_commands, execution_responses):
-        dict_tools_per_gameobject = {}
-        for k in self.active_game_objects.keys():
-            dict_tools_per_gameobject[k] = self.active_game_objects[k].tools
-        global_tools_dataset = GameObject.tools_dataset
         self.game_state = json.dumps(await self.get_game_state())
-        tool_names_per_gameobject = {k:v.keys() for k, v in dict_tools_per_gameobject.items()}
         update_orders_prompt = f"""
             What commands or facts should be presented to each game object to update them?
             Consider the game state {self.game_state}
-            Consider the temporary descriptions the game engine computed for each player: {json.dumps(responses_to_players)}
-            Also think about the sanitized/processed commands for each player, that is, their intention: {json.dumps(player_commands)}. Do not fulfill commands of unccessful players.
-            Consider the tools available to each gameobject: {json.dumps(dict_tools_per_gameobject)}.
-            Also consider the global tools that any gameobject can use: {json.dumps(global_tools_dataset)}.
-            You are not talking to the player right now; you are delivering updates to other gameobjects inside the game.
-            This is the current round: {self.round_counter}.
-            Think about which tools need to be called per gameobject. Only trigger tools if the conditions in their descriptions are met naturally in the game world.
-            Now format the updates each game object needs to receive in a json.\n
-            Remember, these are the tool names for each game object: {tool_names_per_gameobject}\n
-            Output JSON. Conform to the following json schema:\n{ToolList.model_json_schema()}
-            If the object does nothing, ommit that object from the resulting json. It's okay to return an empty json if there are no relevant updates.
-            Lean towards ommiting objects, update only what's necessary..
-            The target is an optional field in case the main_object influences another. If there's no target for the current usage of a tool, the target name should be "N/A"
-            These were the latest updates to gameobjects this round: {execution_responses} Only provide additional updates if they make sense within the game world.
-            Remember you can only access these game objects: {self.active_game_objects.keys()}, though you don't need to update all of them. It's okay to return an empty json object.
+            Return a json dictionary with each game object as key
+            The values of the json dictionary should be the new states of each gameobject.
+            Each returned object should be similar to this: {AllObjects.model_json_schema()}
+            Please ommit objects that need no updates.
             """
         
-        
-        free_language_updates = await self.chat_with_backbone(update_orders_prompt, self._my_history, expect_json=False, keep_history=True, expect_tools=True)
-        execution_responses= []
-        
-        try:
-            tasks = []
-            dict_updates = self.comms_backbone.load_json_from_llm(free_language_updates)
-            for k, tool_list in dict_updates.items():
-                for tool_action in tool_list:
-                    tool_name = tool_action["tool"]
-                    params = tool_action["params"]
-                    target_object_name = tool_action["target"]
-                    if tool_name == "N/A":
-                        continue
-                    else:
-                        main_object = self.active_game_objects[k]
-                    if target_object_name == 'N/A':
-                        target_gameobject = None
-                    elif target_object_name in self.active_game_objects.keys():
-                        target_gameobject = self.active_game_objects[target_object_name]
-                    else:
-                        print (f"trying to execute tool for target object {target_object_name}. That name matches no object.")
-                        continue
-                    if tool_name in global_tools_dataset.keys():
-                        tasks.append(self.execute_tool(main_object, target_gameobject, global_tools_dataset[tool_name], **params))
-                    elif tool_name in self.active_game_objects[k].tools.keys():
-                        tasks.append(self.execute_tool(main_object, target_gameobject, self.active_game_objects[k].tools[tool_name], **params))
-        except Exception as e:
-            print (e)
-            print (f'could not completely execute this update from the LLM: {free_language_updates}')
-            execution_responses += [f'could not completely execute this update from the LLM: {free_language_updates}']
-        finally:
-            if tasks:
-                execution_responses += await asyncio.gather(*tasks) # Execute in parallel
-                return '\n\n'.join(execution_responses)
-            return ''
+        update_json = await self.chat_with_backbone(update_orders_prompt, self._my_history, expect_json=True, keep_history=True, expect_tools=True)
+        update_dict = self.comms_backbone.load_json_from_llm(update_json)
+        for k, v in update_dict.items():
+            await self.active_game_objects[k].update_state(v)
     
     async def process_one_player_input(self, player_id, player_input, aux_bluff_history, aux_success_history, initial_history, game_state):
+        return '', True
         '''
         multiple_actions_prompt = (
             f"Is the player trying to perform multiple actions with a single input? Their input was {player_input}. Lean towards saying the player performed one action. That is, if you\'re not sure, consider it to be one action."
@@ -160,35 +121,32 @@ class EngineGameObject(GameObject):
             response_to_player = ''
             final_success= False
         else:
-        '''
-        game_object_names = list(self.active_game_objects.keys())
-        tasks = [ self.sanity_bluff_check(player_input, game_object_names, game_state, aux_bluff_history), self.ingame_success_check(player_input, game_object_names, game_state, aux_success_history)]
-        bluff, success = await asyncio.gather(*tasks)
-        '''
-        if bluff:
-            aux_player_history = aux_bluff_history
-        else:
-            aux_player_history = aux_success_history
+            game_object_names = list(self.active_game_objects.keys())
+            tasks = [ self.sanity_bluff_check(player_input, game_object_names, game_state, aux_bluff_history), self.ingame_success_check(player_input, game_object_names, game_state, aux_success_history)]
+            bluff, success = await asyncio.gather(*tasks)
+            if bluff:
+                aux_player_history = aux_bluff_history
+            else:
+                aux_player_history = aux_success_history
+                
+            response_prompt = (
+                f"Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff."
+                f"Do not reveal secret or confidential game information, such as a hidden object."
+                f"If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response."
+                f"Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone."
+                f"Be conversational. Avoid long descriptions."
+                f"Remember the player's initial command: {player_input}."
+                f"If there was any problem with the user's action (such as bluffing or not having enough priority in relation to other players), make sure to include that."
+            )
             
-        response_prompt = (
-            f"Relay the state of affairs as a result of the player's actions to the player. Include interesting details about the game state, but do not reveal information on the win and/or lose conditions of the game. If the player failed, explain why that failure happened or why it was considered a bluff."
-            f"Do not reveal secret or confidential game information, such as a hidden object."
-            f"If any gameobject has spoken to the player, relay the game object's message verbatim, word-by-word, as part of your response."
-            f"Do not talk to the player as if you're in a game. Maintain the illusion of fantasy! Because of that, never forward gameobject's messages to the player without paraphrasing them into a natural, common tone."
-            f"Be conversational. Avoid long descriptions."
-            f"Remember the player's initial command: {player_input}."
-            f"If there was any problem with the user's action (such as bluffing or not having enough priority in relation to other players), make sure to include that."
-        )
-        
-        response_to_player = await self.chat_with_backbone(response_prompt, aux_player_history, keep_history=True, lock_history=False)
-        response_to_player = '\n\n' + response_to_player
+            response_to_player = await self.chat_with_backbone(response_prompt, aux_player_history, keep_history=True, lock_history=False)
+            response_to_player = '\n\n' + response_to_player
+            if not success:
+                #for debug
+                await self.chat_with_backbone("Why did the player fail?", aux_success_history, expect_json=False)
+            final_success = not bluff and success
+            return response_to_player, final_success
         '''
-        response_to_player = ''
-        if not success:
-            #for debug
-            await self.chat_with_backbone("Why did the player fail?", aux_success_history, expect_json=False)
-        final_success = not bluff and success
-        return response_to_player, final_success
     
     async def process_player_input(self, player_input):
         async with self.round_lock:
@@ -208,6 +166,7 @@ class EngineGameObject(GameObject):
             
             harmonization_prompt = (
                 f"These are the commands of every player for this round: {json.dumps(player_input)}"
+                f"Try to keep the player command exactly as written if possible"
                 f"The player with the lowest number has the most priority in their action. For example, if player with priority 0 attemps to break a vase and player with priority 2 attempts to take it, the vase should be broken"
                 f"return a new JSON where the keys are the player ids and the commands take into consideration the actions of other players according to priority"
                 f"Each command your return should overwrite the player's initial command. If a player says 'I break the vase' and another player says 'I take the vase' you can change the lowest priority one to 'I fail to ...'. Consider the interactions between the player's commands for all players."
@@ -235,7 +194,7 @@ class EngineGameObject(GameObject):
                 responses_to_players[player_id] = response
             
             execution_responses = ''
-            for _ in range(2):
+            for _ in range(1):
                 execution_responses = await self.update_current_game_state(responses_to_players, dict_player_prompts, execution_responses)
             
             final_responses_prompt = (
